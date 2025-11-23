@@ -227,7 +227,7 @@ Minimal dependencies as requested:
 
 ## License
 
-Public Domain
+WTFPL / effectively Public Domain
 
 ## Authors
 
