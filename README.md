@@ -2,6 +2,8 @@
 
 A fully-featured Arkanoid/Breakout game written in Rust.
 
+<img width="1280" height="749" alt="image" src="https://github.com/user-attachments/assets/af8daa62-e50f-4c54-9500-6d7bf1cd17b9" />
+
 ## Features
 
 - 🎯 **6 Levels with 200 Blocks** - Up to 200 rainbow-colored blocks across 6 unique levels with gradient and glass effects
