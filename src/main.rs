@@ -79,6 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut mouse_down = false;
     let mut is_fullscreen = false;
     
+    // FPS tracking
+    let mut frame_times: Vec<std::time::Instant> = Vec::new();
+    let mut current_fps = 60.0;
+    
     // Available resolutions
     let resolutions = vec![
         (1280, 720),
@@ -141,9 +145,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
+                Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                    if game.state == GameState::Victory {
+                        game.start_next_level(); // Starts level 10 (Infinite Mode)
+                    }
+                }
+
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
                     if game.state == GameState::Paused || game.state == GameState::GameOver || game.state == GameState::Victory {
                         break 'running;
+                    } else if game.state == GameState::Playing {
+                        // Cheat: Skip to next level
+                        if game.blocks.iter().any(|b| b.active) {
+                            // Clear all blocks to trigger level transition
+                            for block in &mut game.blocks {
+                                block.active = false;
+                            }
+                        }
                     }
                 }
 
@@ -253,9 +271,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Update audio (for song transitions)
         audio_manager.update();
+        
+        // Calculate FPS
+        let now = std::time::Instant::now();
+        frame_times.push(now);
+        frame_times.retain(|t| now.duration_since(*t).as_secs_f32() < 1.0);
+        current_fps = frame_times.len() as f32;
 
         // Render
-        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), &font);
+        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), &font, current_fps);
 
         // Target 60 FPS
         std::thread::sleep(Duration::from_millis(16));

@@ -40,6 +40,9 @@ pub struct Paddle {
     pub normal_width: i32,
     pub long_width: i32,
     pub bonus_timer: u32,
+    pub last_x: i32,
+    pub vel_x: i32,
+    pub spin_intensity: f32,
 }
 
 impl Paddle {
@@ -47,11 +50,14 @@ impl Paddle {
         let normal_width = PADDLE_WIDTH;
         Paddle {
             x: (WINDOW_WIDTH as i32 - normal_width) / 2,
-            y: WINDOW_HEIGHT as i32 - 40,
+            y: WINDOW_HEIGHT as i32 - 50,
             width: normal_width,
             normal_width,
             long_width: normal_width + 40,
             bonus_timer: 0,
+            last_x: (WINDOW_WIDTH as i32 - normal_width) / 2,
+            vel_x: 0,
+            spin_intensity: 0.0,
         }
     }
 
@@ -73,6 +79,15 @@ impl Paddle {
     }
 
     pub fn update(&mut self) {
+        self.vel_x = self.x - self.last_x;
+        self.last_x = self.x;
+        
+        // Decay spin intensity visual effect
+        self.spin_intensity *= 0.9;
+        if self.spin_intensity < 0.01 {
+            self.spin_intensity = 0.0;
+        }
+
         if self.bonus_timer > 0 {
             self.bonus_timer -= 1;
             if self.bonus_timer == 0 {
@@ -92,6 +107,7 @@ pub struct Ball {
     pub vel_x: f32,
     pub vel_y: f32,
     pub active: bool,
+    pub spin: f32,
 }
 
 impl Ball {
@@ -99,9 +115,10 @@ impl Ball {
         Ball {
             x,
             y,
-            vel_x: BALL_SPEED as f32,
-            vel_y: -BALL_SPEED as f32,
+            vel_x: 4.0,
+            vel_y: -4.0,
             active: true,
+            spin: 0.0,
         }
     }
 
@@ -110,20 +127,41 @@ impl Ball {
             return;
         }
         
+        // Apply spin (Magnus effect approximation)
+        self.vel_x += self.spin * 0.05;
+        // Decay spin
+        self.spin *= 0.98;
+        
         self.x += self.vel_x;
         self.y += self.vel_y;
 
-        // Wall collision
-        if self.x <= 0.0 || self.x >= (WINDOW_WIDTH - BALL_SIZE as u32) as f32 {
-            self.vel_x = -self.vel_x;
+        // Wall collision with stuck prevention
+        if self.x <= 0.0 {
+            self.x = 0.0;
+            self.vel_x = self.vel_x.abs(); // Force positive
+        } else if self.x >= (WINDOW_WIDTH - BALL_SIZE as u32) as f32 {
+            self.x = (WINDOW_WIDTH - BALL_SIZE as u32) as f32;
+            self.vel_x = -self.vel_x.abs(); // Force negative
         }
+        
         if self.y <= 0.0 {
-            self.vel_y = -self.vel_y;
+            self.y = 0.0;
+            self.vel_y = self.vel_y.abs(); // Force positive
         }
 
         // Bottom boundary - deactivate ball
         if self.y >= WINDOW_HEIGHT as f32 {
             self.active = false;
+        }
+        
+        // Prevent ball from getting stuck in vertical-only movement
+        // Force a minimum horizontal velocity
+        if self.vel_x.abs() < 2.0 {
+            if self.vel_x >= 0.0 {
+                self.vel_x = 2.0;
+            } else {
+                self.vel_x = -2.0;
+            }
         }
     }
 
@@ -179,7 +217,7 @@ impl Bonus {
     }
 
     pub fn rect(&self) -> Rect {
-        Rect::new(self.x as i32, self.y as i32, 20, 20)
+        Rect::new(self.x as i32, self.y as i32, 40, 40)
     }
 }
 
@@ -255,26 +293,104 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
             let y = BLOCK_OFFSET_Y + row as i32 * BLOCK_HEIGHT;
             let color = BLOCK_COLORS[row % BLOCK_COLORS.len()];
             
-            let should_add = match level {
-                1 => true, // Level 1: Full grid
-                2 => (row + col) % 2 == 0, // Level 2: Checkerboard
-                3 => row % 2 == 0, // Level 3: Horizontal Stripes
-                4 => col % 2 == 0 || col % 2 == 1 && row == 0 || row == BLOCK_ROWS - 1, // Level 4: Pillars with top/bottom
-                5 => {
-                    // Level 5: Pyramid / Triangle
-                    let center_col = BLOCK_COLS as i32 / 2;
-                    let dist = (col as i32 - center_col).abs();
-                    dist <= row as i32
-                },
-                6 => {
-                    // Level 6: Diamond / X shape
-                    let center_col = BLOCK_COLS as i32 / 2;
-                    let center_row = BLOCK_ROWS as i32 / 2;
-                    let dist_x = (col as i32 - center_col).abs();
-                    let dist_y = (row as i32 - center_row).abs();
-                    dist_x + dist_y <= center_row + 2
-                },
-                _ => true, // Default
+            let should_add = if level <= 9 {
+                // Predefined patterns for levels 1-9
+                match level {
+                    1 => true, // Level 1: Full grid
+                    2 => (row + col) % 2 == 0, // Level 2: Checkerboard
+                    3 => row % 2 == 0, // Level 3: Horizontal Stripes
+                    4 => col % 2 == 0 || col % 2 == 1 && row == 0 || row == BLOCK_ROWS - 1,
+                    5 => {
+                        let center_col = BLOCK_COLS as i32 / 2;
+                        let dist = (col as i32 - center_col).abs();
+                        dist <= row as i32
+                    },
+                    6 => {
+                        let center_col = BLOCK_COLS as i32 / 2;
+                        let center_row = BLOCK_ROWS as i32 / 2;
+                        let dist_x = (col as i32 - center_col).abs();
+                        let dist_y = (row as i32 - center_row).abs();
+                        dist_x + dist_y <= center_row + 2
+                    },
+                    7 => {
+                        let center_col = BLOCK_COLS as f32 / 2.0;
+                        let center_row = BLOCK_ROWS as f32 / 2.0;
+                        let dx = col as f32 - center_col;
+                        let dy = row as f32 - center_row;
+                        let angle = dy.atan2(dx);
+                        let dist = (dx * dx + dy * dy).sqrt();
+                        let spiral = (angle * 2.0 + dist * 0.5).sin();
+                        spiral > 0.0
+                    },
+                    8 => {
+                        let center_col = BLOCK_COLS as f32 / 2.0;
+                        let center_row = BLOCK_ROWS as f32 / 2.0;
+                        let dx = col as f32 - center_col;
+                        let dy = row as f32 - center_row;
+                        let dist = (dx * dx + dy * dy).sqrt();
+                        (dist as i32) % 3 != 1
+                    },
+                    9 => {
+                        let pattern_x = col % 4;
+                        let pattern_y = row % 4;
+                        !(pattern_x == 1 && pattern_y == 1) && 
+                        !(pattern_x == 2 && pattern_y == 2) &&
+                        !((col + row) % 7 == 0)
+                    },
+                    _ => true,
+                }
+            } else {
+                // Random patterns for levels 10+ (seeded by level number)
+                use rand::{Rng, SeedableRng};
+                use rand::rngs::StdRng;
+                
+                // Use level number as seed for consistent random patterns
+                let mut rng = StdRng::seed_from_u64(level as u64);
+                let pattern_type = rng.gen_range(0..6);
+                
+                // Re-seed for this specific block position
+                let block_seed = level as u64 * 1000 + row as u64 * 100 + col as u64;
+                let mut block_rng = StdRng::seed_from_u64(block_seed);
+                
+                match pattern_type {
+                    0 => {
+                        // Random scatter (60-80% density)
+                        let density = rng.gen_range(0.6..0.8);
+                        block_rng.gen::<f32>() < density
+                    },
+                    1 => {
+                        // Wave pattern
+                        let wave = (col as f32 * 0.5 + row as f32 * 0.3).sin();
+                        let threshold = rng.gen_range(-0.3..0.3);
+                        wave > threshold
+                    },
+                    2 => {
+                        // Diagonal stripes
+                        let stripe_width = rng.gen_range(2..5);
+                        ((row + col) / stripe_width) % 2 == 0
+                    },
+                    3 => {
+                        // Random rings from center
+                        let center_col = BLOCK_COLS as f32 / 2.0;
+                        let center_row = BLOCK_ROWS as f32 / 2.0;
+                        let dx = col as f32 - center_col;
+                        let dy = row as f32 - center_row;
+                        let dist = (dx * dx + dy * dy).sqrt();
+                        let ring_size = rng.gen_range(1.5..3.0);
+                        (dist / ring_size) as i32 % 2 == 0
+                    },
+                    4 => {
+                        // Checkerboard with random offset
+                        let offset = rng.gen_range(0..3);
+                        (row + col + offset) % 2 == 0
+                    },
+                    _ => {
+                        // Cellular automata-like
+                        let neighbor_sum = (row % 3) + (col % 3);
+                        let rule = rng.gen_range(2..6);
+                        neighbor_sum == rule || neighbor_sum == rule + 1
+                    },
+                }
             };
 
             if should_add {

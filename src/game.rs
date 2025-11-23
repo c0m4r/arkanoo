@@ -20,6 +20,7 @@ pub struct Game {
     pub score: u32,
     pub lives: u32,
     pub current_level: usize,
+    pub frame_count: u64,  // For animations
 }
 
 impl Game {
@@ -44,6 +45,7 @@ impl Game {
             score: 0,
             lives: 3,
             current_level: level,
+            frame_count: 0,
         }
     }
 
@@ -52,26 +54,24 @@ impl Game {
     }
 
     pub fn next_level(&mut self) {
-        if self.current_level < 6 {
-            self.state = GameState::LevelTransition;
-        } else {
-            self.state = GameState::Victory;
-        }
+    if self.current_level == 9 {
+        self.state = GameState::Victory;
+    } else {
+        self.state = GameState::LevelTransition;
     }
-    
+}    
     pub fn start_next_level(&mut self) {
-        if self.current_level < 6 {
-            self.current_level += 1;
-            self.paddle = Paddle::new();
-            self.balls = vec![Ball::new(
-                WINDOW_WIDTH as f32 / 2.0,
-                WINDOW_HEIGHT as f32 / 2.0,
-            )];
-            self.blocks = create_blocks(self.current_level);
-            self.bonuses.clear();
-            self.particles.clear();
-            self.state = GameState::Playing;
-        }
+        // Infinite levels - always allow progression
+        self.current_level += 1;
+        self.paddle = Paddle::new();
+        self.balls = vec![Ball::new(
+            WINDOW_WIDTH as f32 / 2.0,
+            WINDOW_HEIGHT as f32 / 2.0,
+        )];
+        self.blocks = create_blocks(self.current_level);
+        self.bonuses.clear();
+        self.particles.clear();
+        self.state = GameState::Playing;
     }
 
     pub fn get_background_path(&self) -> String {
@@ -82,6 +82,9 @@ impl Game {
         if self.state != GameState::Playing {
             return;
         }
+        
+        // Increment frame counter for animations
+        self.frame_count = self.frame_count.wrapping_add(1);
 
         // Update paddle
         self.paddle.update();
@@ -94,15 +97,30 @@ impl Game {
             ball.update();
 
             // Paddle collision
-            if ball.active && check_collision(ball.rect(), self.paddle.rect()) {
-                ball.vel_y = -ball.vel_y.abs();
-                // Add horizontal velocity based on where ball hits paddle
-                let paddle_center = self.paddle.x + self.paddle.width / 2;
-                let ball_center = ball.x as i32 + BALL_SIZE / 2;
-                let offset = ball_center - paddle_center;
-                ball.vel_x += offset as f32 * 0.1;
-                play_sound();
+        if ball.active && check_collision(ball.rect(), self.paddle.rect()) {
+            ball.vel_y = -ball.vel_y.abs();
+            // Add horizontal velocity based on where ball hits paddle
+            let paddle_center = self.paddle.x + self.paddle.width / 2;
+            let ball_center = ball.x as i32 + BALL_SIZE / 2;
+            let offset = ball_center - paddle_center;
+            ball.vel_x += offset as f32 * 0.1;
+            
+            // Add spin based on paddle velocity and offset
+            // REFINED: Less sensitive, requires minimum velocity
+            let paddle_vel = self.paddle.vel_x as f32;
+            
+            if paddle_vel.abs() > 2.0 {
+                // Only apply spin if moving fast enough
+                ball.spin = (paddle_vel * 0.3) + (offset as f32 * 0.05);
+                // Trigger visual discharge effect
+                self.paddle.spin_intensity = 1.0;
+            } else {
+                // Minimal spin from just position offset
+                ball.spin = offset as f32 * 0.02;
             }
+            
+            play_sound();
+        }
 
             // Block collision
             for block in &mut self.blocks {
