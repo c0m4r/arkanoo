@@ -12,32 +12,49 @@ A fully-featured Arkanoid/Breakout game written in Rust.
   - **Levels 10+**: Infinite procedurally generated block layouts.
 - 🌪️ **Spin Mechanic** - Curve the ball's trajectory by moving the paddle during impact.
 - 🎁 **Bonus System** - Random drops (15% chance):
-  - ⚽ Extra Ball - Spawns a second ball (red circle icon)
-  - 📏 Long Paddle - Extends paddle width temporarily (green bar icon)
+  - ⚽ **Extra Ball** - Spawns a second ball (40% of drops)
+  - 📏 **Long Paddle** - Extends paddle width temporarily (40% of drops)
+  - 👻 **Ghost Ball** - Balls pass through blocks for 10 seconds (10% of drops, rare)
+  - 🚀 **Rocket** - Launch explosive rockets with Space (10% of drops, rare)
+- 🎯 **Scoring System**:
+  - +10 points per block destroyed
+  - +5 points for each paddle reflection
+  - +2 points for each bonus collected
+  - -20 points for losing a life
+- 💥 **Rocket Weapon**:
+  - Fire rockets with **Spacebar** when ammo available
+  - Visual cannon indicator appears on paddle
+  - Blinking "press space to launch" text
+  - Rockets explode on impact, destroying blocks in 2-block radius
 - 📊 **HUD** - Score display and lives shown as ❤️ red hearts
+- 💔 **Heart Shatter Effect** - Hearts shatter into particles when lives are lost
 - ⏸️ **Interactive Menu** - Click buttons or use keyboard:
   - Resume, Restart, Settings, Quit
   - Volume control slider
   - Sound mute/unmute toggle
-  - Resolution options (1280×720, 1920×1080, 2560×1440)
+  - Resolution options (1280×720, 1920×1080, 2560×1440) with 5-second confirmation
   - Fullscreen toggle
 - 🎵 **Dynamic Music** - 6 unique songs, one for each level
-- 🔊 **Audio** - MP3 support for ball bounce sounds and background music
+- 🔊 **Audio** - MP3 support with multiple sound effects
 - 🌆 **Procedural Backgrounds** - 6 distinct animated themes (Matrix, Nebula, Tron Grid, etc.) that are randomized for infinite variety.
 - 🖱️ **Mouse Control** - Control paddle with mouse movement
 - 🏆 **Level Transitions** - Win animations and prompts between levels
-- ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed
+- ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed and hearts shatter
 
 ## Visual Enhancements
 
 - **Gradient Blocks** - Top-to-bottom color fade on each block
 - **Glass Effects** - Semi-transparent overlays on blocks and paddle
-- **Symbolic Bonuses** - Easy-to-recognize icons (ball and paddle symbols)
+- **Symbolic Bonuses** - Easy-to-recognize icons for all bonus types
 - **Heart Lives** - Lives displayed as red heart shapes (PNG texture)
+- **Heart Shatter Animation** - Hearts explode into crimson particles when lives are lost
+- **Rocket Visuals** - Detailed rocket projectiles with nose cone, fins, and flame trail
+- **Cannon Indicator** - Visual cannon appears on paddle when rockets are available
 - **Procedural Backgrounds** - 6 stunning, randomized themes (Cyber Grid, Star Voyage, Hex Pulse, Aurora Waves, Matrix Rain, Nebula Clouds).
 - **Visual Feedback** - Paddle glows and discharges energy when spin is applied.
 - **Smooth Animations** - Particle effects and transitions
-- **Scalable Graphics** - Resolution options and fullscreen support
+- **Scalable Graphics** - Resolution options with crisp font rendering at all resolutions
+- **Safe Resolution Changes** - 5-second confirmation prevents accidental resolution issues
 
 ## Controls
 
@@ -45,6 +62,7 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 |-----|--------|
 | ← / → | Move paddle left/right (keyboard) |
 | Mouse Movement | Move paddle left/right (in-game) |
+| **Space** | **Fire rocket (when available)** |
 | Left Click | Start next level (during transitions) |
 | ESC | Pause/Resume game |
 | F11 | Toggle fullscreen |
@@ -60,7 +78,7 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 **In Settings:**
 - Sound Toggle - Enable/disable all audio
 - Volume Slider - Adjust music and sound effect volume (0-100%)
-- Resolution - Cycle through available resolutions (1280×720, 1920×1080, 2560×1440)
+- Resolution - Cycle through available resolutions with 5-second confirmation (1280×720, 1920×1080, 2560×1440)
 - Fullscreen - Toggle fullscreen mode
 
 ## Building
@@ -130,6 +148,9 @@ Place the following files in the `assets/` directory:
 
 **Audio:**
 - `ball.mp3` - Ball bounce sound effect
+- `oh.mp3` - Sound when life is lost
+- `load.mp3` - Sound when launching rocket
+- `breaking-glass.mp3` - Sound when rocket explodes
 - `song1.mp3` through `song6.mp3` - Background music (one per level)
 
 **Graphics:**
@@ -154,8 +175,16 @@ The binary will be at `target/release/arkanoo` (approximately 540 KB).
 ## Game Rules
 
 - Start with **3 lives** (shown as ❤️)
-- Each block destroyed: **+10 points**
-- Collect falling bonuses to gain advantages
+- **Scoring:**
+  - Each block destroyed: **+10 points**
+  - Each paddle reflection: **+5 points**
+  - Each bonus collected: **+2 points**
+  - Losing a life: **-20 points**
+- **Bonuses** (15% drop chance):
+  - **Extra Ball** (40%) - Adds an additional ball
+  - **Long Paddle** (40%) - Extends paddle temporarily
+  - **Ghost Ball** (10%, rare) - Balls pass through blocks for 10 seconds
+  - **Rocket** (10%, rare) - Grants 1 rocket, fire with Space to create 2-block radius explosion
 - **9-Level Campaign** with unique block patterns
 - **Infinite Mode** unlocks after completing the campaign
 - Clear all blocks in a level to proceed to the next
@@ -177,13 +206,16 @@ The pause menu features **clickable buttons** with hover effects:
 arkanoo/
 ├── src/
 │   ├── main.rs         # Entry point & game loop with menu integration
-│   ├── entities.rs     # Game entities (Paddle, Ball, Block, Bonus, Particle)
-│   ├── game.rs         # Core game logic with 6 levels
-│   ├── rendering.rs    # Graphics with gradients, glass effects, particles
-│   ├── audio.rs        # Level-based music management
-│   └── menu.rs         # Interactive menu with settings
+│   ├── entities.rs     # Game entities (Paddle, Ball, Block, Bonus, Particle, Rocket)
+│   ├── game.rs         # Core game logic with scoring and bonuses
+│   ├── rendering.rs    # Graphics with gradients, glass effects, particles, rockets
+│   ├── audio.rs        # Level-based music management and sound effects
+│   └── menu.rs         # Interactive menu with settings and resolution confirmation
 ├── assets/
 │   ├── ball.mp3        # Bounce sound effect
+│   ├── oh.mp3          # Life lost sound
+│   ├── load.mp3        # Rocket launch sound
+│   ├── breaking-glass.mp3  # Rocket explosion sound
 │   ├── song1.mp3       # Level 1 music
 │   ├── song2.mp3       # Level 2 music
 │   ├── song3.mp3       # Level 3 music
@@ -210,7 +242,9 @@ Minimal dependencies as requested:
 ## Troubleshooting
 
 ### No Audio
-- Ensure all MP3 files (`ball.mp3`, `song1.mp3` - `song6.mp3`) are in `assets/` directory
+- Ensure all MP3 files are in `assets/` directory:
+  - Music: `song1.mp3` - `song6.mp3`
+  - Sound effects: `ball.mp3`, `oh.mp3`, `load.mp3`, `breaking-glass.mp3`
 - Check file permissions (read access required)
 - Verify SDL2_mixer is installed with MP3 support
 
@@ -228,7 +262,8 @@ Minimal dependencies as requested:
 
 ## License
 
-WTFPL / effectively Public Domain
+- arkanoo: WTFPL / effectively Public Domain / Copyright (C) 2025 c0m4r
+- SDL2: zlib license / Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
 ## Authors
 
