@@ -4,7 +4,14 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 
 ## Features
 
-- 🎯 **60 Colorful Blocks** - Rainbow-colored blocks in a 6×10 grid with gradient and glass effects
+- 🎯 **6 Levels with 200 Blocks** - Up to 200 rainbow-colored blocks across 6 unique levels with gradient and glass effects
+- 📋 **Unique Level Patterns**:
+  - **Level 1**: Full Grid (200 blocks)
+  - **Level 2**: Checkerboard Pattern
+  - **Level 3**: Horizontal Stripes
+  - **Level 4**: Pillars with Borders
+  - **Level 5**: Pyramid/Triangle Shape
+  - **Level 6**: Diamond/X Shape
 - 🎁 **Bonus System** - Random drops (15% chance):
   - ⚽ Extra Ball - Spawns a second ball (red circle icon)
   - 📏 Long Paddle - Extends paddle width temporarily (green bar icon)
@@ -13,26 +20,36 @@ A fully-featured Arkanoid/Breakout game written in Rust.
   - Resume, Restart, Settings, Quit
   - Volume control slider
   - Sound mute/unmute toggle
-- 🎵 **Multi-Song Playlist** - Plays 4 songs (song1-4.mp3) in order, starting from a random song
+  - Resolution options (1280×720, 1920×1080, 2560×1440)
+  - Fullscreen toggle
+- 🎵 **Dynamic Music** - 6 unique songs, one for each level
 - 🔊 **Audio** - MP3 support for ball bounce sounds and background music
-- 🌆 **Custom Background** - Support for PNG background images
+- 🌆 **Custom Backgrounds** - 6 unique PNG backgrounds (one per level)
+- 🖱️ **Mouse Control** - Control paddle with mouse movement
+- 🏆 **Level Transitions** - Win animations and prompts between levels
+- ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed
 
 ## Visual Enhancements
 
 - **Gradient Blocks** - Top-to-bottom color fade on each block
 - **Glass Effects** - Semi-transparent overlays on blocks and paddle
 - **Symbolic Bonuses** - Easy-to-recognize icons (ball and paddle symbols)
-- **Heart Lives** - Lives displayed as red heart shapes
-- **Custom Background** - Optional PNG background image support
+- **Heart Lives** - Lives displayed as red heart shapes (PNG texture)
+- **Dynamic Backgrounds** - 6 unique PNG backgrounds that change per level
+- **Smooth Animations** - Particle effects and transitions
+- **Scalable Graphics** - Resolution options and fullscreen support
 
 ## Controls
 
 | Key/Action | Function |
 |-----|--------|
-| ← / → | Move paddle left/right |
+| ← / → | Move paddle left/right (keyboard) |
+| Mouse Movement | Move paddle left/right (in-game) |
+| Left Click | Start next level (during transitions) |
 | ESC | Pause/Resume game |
-| Mouse | Navigate menus, adjust volume slider |
-| Left Click | Select menu items, drag volume slider |
+| F11 | Toggle fullscreen |
+| R | Restart (in pause/game over) |
+| Q | Quit (in pause/game over) |
 
 **In Pause Menu:**
 - Resume - Continue game
@@ -43,10 +60,14 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 **In Settings:**
 - Sound Toggle - Enable/disable all audio
 - Volume Slider - Adjust music and sound effect volume (0-100%)
+- Resolution - Cycle through available resolutions (1280×720, 1920×1080, 2560×1440)
+- Fullscreen - Toggle fullscreen mode
 
 ## Building
 
 ### Prerequisites
+
+#### Linux
 
 Install SDL2 development libraries:
 
@@ -61,17 +82,59 @@ sudo dnf install SDL2-devel SDL2_mixer-devel SDL2_ttf-devel SDL2_image-devel
 sudo pacman -S sdl2 sdl2_mixer sdl2_ttf sdl2_image
 ```
 
-### Audio Assets
+#### Windows
 
-Place your audio files in the `assets/` directory:
+Building on Windows requires additional setup:
+
+**1. Install Visual Studio Build Tools**
+
+Download and install:
+- [Visual Studio Build Tools](https://aka.ms/vs/stable/vs_BuildTools.exe)
+
+**2. Install CMake (version 3.31.10)**
+
+Download and install from either:
+- [CMake Official](https://cmake.org/files/v3.31/cmake-3.31.10-windows-x86_64.msi)
+- [CMake GitHub Mirror](https://github.com/Kitware/CMake/releases/download/v3.31.10/cmake-3.31.10-windows-x86_64.msi)
+
+**3. Download SDL2 Prebuilt Binaries**
+
+Download the latest Windows development libraries from:
+- [SDL2](https://github.com/libsdl-org/SDL/releases) - Main SDL library
+- [SDL2_ttf](https://github.com/libsdl-org/SDL_ttf/releases) - TrueType font support
+- [SDL2_image](https://github.com/libsdl-org/SDL_image/releases) - Image loading (PNG)
+- [SDL2_mixer](https://github.com/libsdl-org/SDL_mixer/releases) - Audio mixing (MP3)
+
+**4. Extract and Organize SDL Files**
+
+In your `arkanoo` directory (next to `Cargo.toml`):
+1. Extract all `.lib` files from the downloaded SDL archives to the root directory
+2. Combine all `include` folders from each SDL library into a single `include` directory
+3. Your directory structure should look like:
+   ```
+   arkanoo/
+   ├── Cargo.toml
+   ├── SDL2.lib
+   ├── SDL2_ttf.lib
+   ├── SDL2_image.lib
+   ├── SDL2_mixer.lib
+   ├── include/
+   │   └── SDL2/
+   │       ├── *.h (combined headers from all SDL libraries)
+   └── src/
+   ```
+
+### Required Assets
+
+Place the following files in the `assets/` directory:
+
+**Audio:**
 - `ball.mp3` - Ball bounce sound effect
-- `song1.mp3` through `song4.mp3` - Background music playlist
+- `song1.mp3` through `song6.mp3` - Background music (one per level)
 
-The game will automatically cycle through the 4 songs in order, starting from a randomly selected one.
-
-### Optional: Background Image
-
-- `assets/background.png` - Custom background image (optional)
+**Graphics:**
+- `background1.png` through `background6.png` - Background images (one per level)
+- `heart.png` - Heart icon for life display
 
 ### Compile
 
@@ -93,7 +156,9 @@ The binary will be at `target/release/arkanoo` (approximately 540 KB).
 - Start with **3 lives** (shown as ❤️)
 - Each block destroyed: **+10 points**
 - Collect falling bonuses to gain advantages
-- Clear all 60 blocks to win!
+- **6 Levels** with unique block patterns
+- Clear all blocks in a level to proceed to the next
+- Complete all 6 levels to win!
 - Game over if all lives are lost
 
 ## Menu Navigation
@@ -111,19 +176,26 @@ The pause menu features **clickable buttons** with hover effects:
 arkanoo/
 ├── src/
 │   ├── main.rs         # Entry point & game loop with menu integration
-│   ├── landlock.rs     # Sandboxing implementation
-│   ├── entities.rs     # Game entities (Paddle, Ball, Block, Bonus)
-│   ├── game.rs         # Core game logic
-│   ├── rendering.rs    # Graphics with gradients, glass effects, text
-│   ├── audio.rs        # Multi-song playlist management
-│   └── menu.rs         # Interactive menu system
+│   ├── entities.rs     # Game entities (Paddle, Ball, Block, Bonus, Particle)
+│   ├── game.rs         # Core game logic with 6 levels
+│   ├── rendering.rs    # Graphics with gradients, glass effects, particles
+│   ├── audio.rs        # Level-based music management
+│   └── menu.rs         # Interactive menu with settings
 ├── assets/
 │   ├── ball.mp3        # Bounce sound effect
-│   ├── song1.mp3       # Background music track 1
-│   ├── song2.mp3       # Background music track 2
-│   ├── song3.mp3       # Background music track 3
-│   ├── song4.mp3       # Background music track 4
-│   └── background.png  # Optional background image
+│   ├── song1.mp3       # Level 1 music
+│   ├── song2.mp3       # Level 2 music
+│   ├── song3.mp3       # Level 3 music
+│   ├── song4.mp3       # Level 4 music
+│   ├── song5.mp3       # Level 5 music
+│   ├── song6.mp3       # Level 6 music
+│   ├── background1.png # Level 1 background
+│   ├── background2.png # Level 2 background
+│   ├── background3.png # Level 3 background
+│   ├── background4.png # Level 4 background
+│   ├── background5.png # Level 5 background
+│   ├── background6.png # Level 6 background
+│   └── heart.png       # Heart life icon
 └── Cargo.toml
 ```
 
@@ -137,13 +209,21 @@ Minimal dependencies as requested:
 ## Troubleshooting
 
 ### No Audio
-- Ensure MP3 files are in `assets/` directory
+- Ensure all MP3 files (`ball.mp3`, `song1.mp3` - `song6.mp3`) are in `assets/` directory
 - Check file permissions (read access required)
 - Verify SDL2_mixer is installed with MP3 support
 
 ### Background Not Showing
-- Ensure `assets/background.png` exists
+- Ensure all background PNG files (`background1.png` - `background6.png`) exist in `assets/`
 - Verify SDL2_image is installed with PNG support
+
+### Font Issues (Windows)
+- The game uses `C:\Windows\Fonts\Arial.ttf` on Windows
+- Ensure the font file exists or modify `src/main.rs` to use a different font
+
+### Font Issues (Linux)
+- The game uses `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` on Linux
+- Install DejaVu fonts if missing: `sudo apt-get install fonts-dejavu-core`
 
 ## License
 

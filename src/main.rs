@@ -44,7 +44,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut event_pump = sdl_context.event_pump()?;
 
     // Load font
-    let font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    let font_path = if cfg!(target_os = "windows") {
+        r"C:\Windows\Fonts\Arial.ttf"
+    } else {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    };
     let font = ttf_context.load_font(font_path, 24)?;
 
     // Load background image (will be loaded dynamically per level)
