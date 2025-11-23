@@ -1,77 +1,101 @@
-use sdl2::render::{Canvas, Texture};
-use sdl2::video::Window;
-use sdl2::pixels::Color as SdlColor;
+use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::video::{Window, WindowContext};
+use sdl2::pixels::{Color as SdlColor, PixelFormatEnum};
 use sdl2::rect::{Rect, Point};
 use sdl2::ttf::Font;
 use crate::game::{Game, GameState};
 use crate::entities::*;
 use crate::menu::{Menu, MenuState, Button, VolumeSlider};
 
-/// Draw a shiny metal ball with speed text and fireball effect
-fn draw_shiny_ball(canvas: &mut Canvas<Window>, ball: &Ball, font: &Font) {
-    let cx = ball.x as i32 + BALL_SIZE / 2;
-    let cy = ball.y as i32 + BALL_SIZE / 2;
-    let radius = BALL_SIZE / 2;
-    
-    // Calculate ball speed
-    let speed_px_frame = (ball.vel_x.powi(2) + ball.vel_y.powi(2)).sqrt();
-    let speed_px_sec = speed_px_frame * 60.0; // Assuming 60 FPS
-    
-    // Draw fireball/comet trail effect if speed >= 1000px/s
-    if speed_px_sec >= 1000.0 {
-        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+pub struct TextureCache<'a> {
+    pub ball: Texture<'a>,
+    pub paddle_normal: Texture<'a>,
+    pub paddle_long: Texture<'a>,
+    pub blocks: Vec<Texture<'a>>,
+    pub speed_text: Option<Texture<'a>>,
+    pub last_speed_text: String,
+    pub creator: &'a TextureCreator<WindowContext>,
+}
+
+impl<'a> TextureCache<'a> {
+    pub fn new(canvas: &mut Canvas<Window>, texture_creator: &'a TextureCreator<WindowContext>) -> Result<Self, String> {
+        // Create ball texture
+        let mut ball = texture_creator.create_texture_target(PixelFormatEnum::RGBA8888, BALL_SIZE as u32, BALL_SIZE as u32)
+            .map_err(|e| e.to_string())?;
+        ball.set_blend_mode(sdl2::render::BlendMode::Blend);
         
-        // Calculate direction opposite to velocity
-        let vel_mag = speed_px_frame;
-        let dir_x = -ball.vel_x / vel_mag;
-        let dir_y = -ball.vel_y / vel_mag;
-        
-        // Draw flame trail particles behind the ball
-        for i in 1..=20 {
-            let trail_dist = i as f32 * 2.0;
-            let trail_x = cx + (dir_x * trail_dist) as i32;
-            let trail_y = cy + (dir_y * trail_dist) as i32;
-            
-            // Fade out and shrink as we go back
-            let alpha = ((20 - i) as f32 / 20.0 * 180.0) as u8;
-            let trail_radius = radius - (i / 4);
-            
-            // Color gradient from white/yellow to red/orange
-            let (r, g, b) = if i < 7 {
-                (255u8, (255 - i * 20) as u8, 100u8) // Yellow-white
-            } else if i < 14 {
-                (255u8, (140 - (i - 7) * 15) as u8, 50u8) // Orange
-            } else {
-                (200u8, 50u8, 20u8) // Red
-            };
-            
-            // Draw flame particle as filled circle
-            for dy in -trail_radius..=trail_radius {
-                for dx in -trail_radius..=trail_radius {
-                    if dx*dx + dy*dy <= trail_radius*trail_radius {
-                        canvas.set_draw_color(SdlColor::RGBA(r, g, b, alpha));
-                        let _ = canvas.draw_point(Point::new(trail_x + dx, trail_y + dy));
-                    }
-                }
-            }
+        canvas.with_texture_canvas(&mut ball, |canvas| {
+            canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 0));
+            canvas.clear();
+            draw_shiny_ball_texture(canvas);
+        }).map_err(|e| e.to_string())?;
+
+        // Create paddle textures
+        let mut paddle_normal = texture_creator.create_texture_target(PixelFormatEnum::RGBA8888, PADDLE_WIDTH as u32, PADDLE_HEIGHT as u32)
+            .map_err(|e| e.to_string())?;
+        paddle_normal.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+        canvas.with_texture_canvas(&mut paddle_normal, |canvas| {
+            canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 0));
+            canvas.clear();
+            draw_paddle_texture(canvas, PADDLE_WIDTH, PADDLE_HEIGHT);
+        }).map_err(|e| e.to_string())?;
+
+        let long_width = PADDLE_WIDTH + 40;
+        let mut paddle_long = texture_creator.create_texture_target(PixelFormatEnum::RGBA8888, long_width as u32, PADDLE_HEIGHT as u32)
+            .map_err(|e| e.to_string())?;
+        paddle_long.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+        canvas.with_texture_canvas(&mut paddle_long, |canvas| {
+            canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 0));
+            canvas.clear();
+            draw_paddle_texture(canvas, long_width, PADDLE_HEIGHT);
+        }).map_err(|e| e.to_string())?;
+
+        // Create block textures
+        let mut blocks = Vec::new();
+        for color in BLOCK_COLORS.iter() {
+            let mut block = texture_creator.create_texture_target(PixelFormatEnum::RGBA8888, BLOCK_WIDTH as u32, BLOCK_HEIGHT as u32)
+                .map_err(|e| e.to_string())?;
+            block.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+            canvas.with_texture_canvas(&mut block, |canvas| {
+                canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 0));
+                canvas.clear();
+                draw_block_texture(canvas, *color);
+            }).map_err(|e| e.to_string())?;
+            blocks.push(block);
         }
-        
-        canvas.set_blend_mode(sdl2::render::BlendMode::None);
+
+        Ok(TextureCache {
+            ball,
+            paddle_normal,
+            paddle_long,
+            blocks,
+            speed_text: None,
+            last_speed_text: String::new(),
+            creator: texture_creator,
+        })
     }
-    
+}
+
+// Helper functions for texture generation (moved from original draw functions)
+
+fn draw_shiny_ball_texture(canvas: &mut Canvas<Window>) {
+    let radius = BALL_SIZE / 2;
+    let cx = radius;
+    let cy = radius;
+
     // Draw filled circle with gradient
     for dy in -radius..=radius {
         for dx in -radius..=radius {
             let dist_sq = dx * dx + dy * dy;
             if dist_sq <= radius * radius {
-                // Calculate distance from center for gradient
                 let dist = (dist_sq as f32).sqrt();
                 let factor = 1.0 - (dist / radius as f32);
                 
-                // Base color with gradient (silver/steel)
                 let brightness = (160.0 + factor * 95.0) as u8;
                 
-                // Add specular highlight in top-left quadrant
                 let highlight_x = dx + radius / 2;
                 let highlight_y = dy + radius / 2;
                 let highlight_dist_sq = highlight_x * highlight_x + highlight_y * highlight_y;
@@ -87,29 +111,310 @@ fn draw_shiny_ball(canvas: &mut Canvas<Window>, ball: &Ball, font: &Font) {
             }
         }
     }
+}
+
+fn draw_paddle_texture(canvas: &mut Canvas<Window>, w: i32, h: i32) {
+    let radius = 10;
+    
+    // 1. Main Body
+    canvas.set_draw_color(SdlColor::RGB(40, 50, 70));
+    let _ = canvas.fill_rect(Rect::new(radius, 0, (w - 2 * radius) as u32, h as u32));
+    let _ = canvas.fill_rect(Rect::new(0, radius, radius as u32, (h - 2 * radius) as u32));
+    let _ = canvas.fill_rect(Rect::new(w - radius, radius, radius as u32, (h - 2 * radius) as u32));
+    
+    let corners = [
+        (radius, radius),
+        (w - radius, radius),
+        (radius, h - radius),
+        (w - radius, h - radius),
+    ];
+    
+    for &(cx, cy) in &corners {
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                if dx*dx + dy*dy <= radius*radius {
+                    let _ = canvas.draw_point(Point::new(cx + dx, cy + dy));
+                }
+            }
+        }
+    }
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+    // 3. Metallic Gradient on body
+    for line_y in 0..h {
+        if line_y >= (h - 4) / 2 && line_y < (h + 4) / 2 {
+            continue; // Skip core area
+        }
+        
+        let factor = line_y as f32 / h as f32;
+        let alpha = ((1.0 - (factor - 0.5).abs() * 2.0) * 100.0) as u8;
+        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
+        
+        let mut start_x = 0;
+        let mut end_x = w;
+        
+        if line_y < radius {
+            let dy = radius - line_y;
+            let dx = ((radius * radius - dy * dy) as f32).sqrt() as i32;
+            start_x = radius - dx;
+            end_x = w - radius + dx;
+        } else if line_y >= h - radius {
+            let dy = line_y - (h - radius);
+            let dx = ((radius * radius - dy * dy) as f32).sqrt() as i32;
+            start_x = radius - dx;
+            end_x = w - radius + dx;
+        }
+        
+        let _ = canvas.draw_line(
+            Point::new(start_x, line_y),
+            Point::new(end_x, line_y),
+        );
+    }
+
+    // 5. Tech Borders (Outline)
+    canvas.set_draw_color(SdlColor::RGBA(100, 200, 255, 150));
+    let _ = canvas.draw_line(Point::new(radius, 0), Point::new(w - radius, 0));
+    let _ = canvas.draw_line(Point::new(radius, h - 1), Point::new(w - radius, h - 1));
+    let _ = canvas.draw_line(Point::new(0, radius), Point::new(0, h - radius));
+    let _ = canvas.draw_line(Point::new(w - 1, radius), Point::new(w - 1, h - radius));
+    
+    // Corner arcs
+    for i in 0..=90 {
+        let rad = (i as f32 + 180.0).to_radians();
+        let px = radius + (radius as f32 * rad.cos()) as i32;
+        let py = radius + (radius as f32 * rad.sin()) as i32;
+        let _ = canvas.draw_point(Point::new(px, py));
+    }
+    for i in 0..=90 {
+        let rad = (i as f32 + 270.0).to_radians();
+        let px = w - radius + (radius as f32 * rad.cos()) as i32;
+        let py = radius + (radius as f32 * rad.sin()) as i32;
+        let _ = canvas.draw_point(Point::new(px, py));
+    }
+    for i in 0..=90 {
+        let rad = (i as f32).to_radians();
+        let px = w - radius + (radius as f32 * rad.cos()) as i32;
+        let py = h - radius + (radius as f32 * rad.sin()) as i32;
+        let _ = canvas.draw_point(Point::new(px, py));
+    }
+    for i in 0..=90 {
+        let rad = (i as f32 + 90.0).to_radians();
+        let px = radius + (radius as f32 * rad.cos()) as i32;
+        let py = h - radius + (radius as f32 * rad.sin()) as i32;
+        let _ = canvas.draw_point(Point::new(px, py));
+    }
+}
+
+fn draw_block_texture(canvas: &mut Canvas<Window>, color: Color) {
+    let w = BLOCK_WIDTH;
+    let h = BLOCK_HEIGHT;
+    
+    // 1. Base fill
+    let r = (color.r as f32 * 0.7) as u8;
+    let g = (color.g as f32 * 0.7) as u8;
+    let b = (color.b as f32 * 0.7) as u8;
+    canvas.set_draw_color(SdlColor::RGB(r, g, b));
+    let _ = canvas.fill_rect(Rect::new(0, 0, w as u32, h as u32));
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+
+    // 2. Metallic/Glass Shine
+    for y in 0..h {
+        let factor = y as f32 / h as f32;
+        let alpha = if factor < 0.4 {
+            ((1.0 - factor / 0.4) * 120.0) as u8
+        } else if factor < 0.5 {
+            ((factor - 0.4) / 0.1 * 200.0) as u8
+        } else {
+            ((1.0 - (factor - 0.5) / 0.5) * 80.0) as u8
+        };
+        
+        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
+        let _ = canvas.draw_line(
+            Point::new(0, y),
+            Point::new(w, y),
+        );
+    }
+    
+    // 3. Inner Glow
+    let glow_rect = Rect::new(2, 2, (w - 4) as u32, (h - 4) as u32);
+    canvas.set_draw_color(SdlColor::RGBA(color.r, color.g, color.b, 150));
+    let _ = canvas.draw_rect(glow_rect);
+
+    // 4. 3D Bevel Borders
+    canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 200));
+    let _ = canvas.draw_line(Point::new(0, 0), Point::new(w, 0));
+    let _ = canvas.draw_line(Point::new(0, 0), Point::new(0, h));
+    
+    canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 180));
+    let _ = canvas.draw_line(Point::new(0, h-1), Point::new(w, h-1));
+    let _ = canvas.draw_line(Point::new(w-1, 0), Point::new(w-1, h));
+}
+
+
+/// Draw a shiny metal ball with speed text and fireball effect
+fn draw_shiny_ball(canvas: &mut Canvas<Window>, ball: &Ball, font: &Font, cache: &mut TextureCache, frame_count: u64) {
+    let cx = ball.x as i32 + BALL_SIZE / 2;
+    let cy = ball.y as i32 + BALL_SIZE / 2;
+    let radius = BALL_SIZE / 2;
+    
+    // Calculate ball speed
+    let speed_px_frame = (ball.vel_x.powi(2) + ball.vel_y.powi(2)).sqrt();
+    let speed_px_sec = speed_px_frame * 60.0; // Assuming 60 FPS
+    
+    // Draw ball trail for ultra-fast speeds (using stored positions)
+    if !ball.trail_positions.is_empty() {
+        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+        
+        let positions: Vec<_> = ball.trail_positions.iter().collect();
+        for (i, (tx, ty)) in positions.iter().enumerate() {
+            let alpha = ((i + 1) as f32 / positions.len() as f32 * 180.0) as u8;
+            let trail_size = (BALL_SIZE as f32 * 0.8) as i32;
+            
+            // Draw semi-transparent ball copy
+            canvas.set_draw_color(SdlColor::RGBA(200, 200, 255, alpha));
+            for dy in 0..trail_size {
+                for dx in 0..trail_size {
+                    let cdx = dx - trail_size / 2;
+                    let cdy = dy - trail_size / 2;
+                    if cdx*cdx + cdy*cdy <= (trail_size/2)*(trail_size/2) {
+                        let _ = canvas.draw_point(Point::new(*tx as i32 + dx, *ty as i32 + dy));
+                    }
+                }
+            }
+        }
+        
+        canvas.set_blend_mode(sdl2::render::BlendMode::None);
+    }
+    
+    // Draw fireball/comet trail effect if speed >= 800px/s
+    // Super fireball at >= 1400px/s with brighter glow, pulsing, and rapid spinning
+    if speed_px_sec >= 800.0 {
+        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+        
+        let is_super_fireball = speed_px_sec >= 1400.0;
+        
+        // Calculate direction opposite to velocity
+        let vel_mag = speed_px_frame;
+        let dir_x = -ball.vel_x / vel_mag;
+        let dir_y = -ball.vel_y / vel_mag;
+        
+        // Determine trail properties based on speed tier
+        let (trail_length, base_intensity) = if is_super_fireball {
+            (30, 220.0) // Longer, brighter trail for super fireball
+        } else {
+            (20, 180.0) // Normal fireball
+        };
+        
+        // Draw flame trail particles behind the ball
+        for i in 1..=trail_length {
+            let trail_dist = i as f32 * 2.0;
+            let trail_x = cx + (dir_x * trail_dist) as i32;
+            let trail_y = cy + (dir_y * trail_dist) as i32;
+            
+            // Pulsing effect for super fireball
+            let pulse_factor = if is_super_fireball {
+                (frame_count as f32 * 0.3).sin() * 0.2 + 0.8
+            } else {
+                1.0
+            };
+            
+            // Fade out and shrink as we go back
+            let alpha = ((trail_length - i) as f32 / trail_length as f32 * base_intensity * pulse_factor) as u8;
+            let trail_radius = radius - (i / 4);
+            
+            // Color gradient - brighter for super fireball
+            let (r, g, b) = if is_super_fireball {
+                // Super fireball: brighter, more yellow-white
+                if i < 10 {
+                    (255u8, 255u8, 200u8) // Bright white-yellow
+                } else if i < 20 {
+                    (255u8, (220 - (i - 10) * 8) as u8, 100u8) // Bright orange
+                } else {
+                    (255u8, 100u8, 50u8) // Bright red-orange
+                }
+            } else {
+                // Regular fireball
+                if i < 7 {
+                    (255u8, (255 - i * 20) as u8, 100u8) // Yellow-white
+                } else if i < 14 {
+                    (255u8, (140 - (i - 7) * 15) as u8, 50u8) // Orange
+                } else {
+                    (200u8, 50u8, 20u8) // Red
+                }
+            };
+            
+            // Draw flame particle as filled circle
+            for dy in -trail_radius..=trail_radius {
+                for dx in -trail_radius..=trail_radius {
+                    if dx*dx + dy*dy <= trail_radius*trail_radius {
+                        canvas.set_draw_color(SdlColor::RGBA(r, g, b, alpha));
+                        let _ = canvas.draw_point(Point::new(trail_x + dx, trail_y + dy));
+                    }
+                }
+            }
+        }
+        
+        // Add spinning particle ring for super fireball
+        if is_super_fireball {
+            let spin_speed = frame_count as f32 * 0.2; // Rapid spin
+            for i in 0..12 {
+                let angle_offset = (i as f32 / 12.0) * std::f32::consts::PI * 2.0 + spin_speed;
+                let ring_radius = 18.0;
+                let px = cx + (angle_offset.cos() * ring_radius) as i32;
+                let py = cy + (angle_offset.sin() * ring_radius) as i32;
+                
+                // Pulsing alpha
+                let pulse_alpha = ((frame_count as f32 * 0.3 + i as f32 * 0.5).sin() * 80.0 + 175.0) as u8;
+                
+                // Draw glowing particle
+                for dy in -3..=3 {
+                    for dx in -3..=3 {
+                        if dx*dx + dy*dy <= 9 {
+                            canvas.set_draw_color(SdlColor::RGBA(255, 255, 200, pulse_alpha));
+                            let _ = canvas.draw_point(Point::new(px + dx, py + dy));
+                        }
+                    }
+                }
+            }
+        }
+        
+        canvas.set_blend_mode(sdl2::render::BlendMode::None);
+    }
+    
+    // Draw ball from cache
+    let _ = canvas.copy(&cache.ball, None, Some(ball.rect()));
 
     // Draw speed text
     let speed_text = format!("{} px/s", speed_px_sec as i32);
     
-    if let Ok(surface) = font.render(&speed_text).blended(SdlColor::RGB(200, 200, 200)) {
-        let texture_creator = canvas.texture_creator();
-        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
-            // Position text above the ball
-            let text_width = surface.width();
-            let text_height = surface.height();
-            // Scale down the font for the speed display
-            let scale = 0.6;
-            let scaled_width = (text_width as f32 * scale) as u32;
-            let scaled_height = (text_height as f32 * scale) as u32;
-            
-            let target = Rect::new(
-                cx - (scaled_width as i32 / 2),
-                cy - radius - scaled_height as i32 - 5,
-                scaled_width,
-                scaled_height
-            );
-            let _ = canvas.copy(&texture, None, Some(target));
-        };
+    if speed_text != cache.last_speed_text {
+        if let Ok(surface) = font.render(&speed_text).blended(SdlColor::RGB(200, 200, 200)) {
+            // Use the cached texture creator
+            if let Ok(texture) = cache.creator.create_texture_from_surface(&surface) {
+                cache.speed_text = Some(texture);
+                cache.last_speed_text = speed_text;
+            }
+        }
+    }
+
+    if let Some(texture) = &cache.speed_text {
+        let query = texture.query();
+        let text_width = query.width;
+        let text_height = query.height;
+        // Scale down the font for the speed display
+        let scale = 0.6;
+        let scaled_width = (text_width as f32 * scale) as u32;
+        let scaled_height = (text_height as f32 * scale) as u32;
+        
+        let target = Rect::new(
+            cx - (scaled_width as i32 / 2),
+            cy - radius - scaled_height as i32 - 5,
+            scaled_width,
+            scaled_height
+        );
+        let _ = canvas.copy(texture, None, Some(target));
     }
 }
 
@@ -143,100 +448,28 @@ fn draw_heart(canvas: &mut Canvas<Window>, cx: i32, cy: i32, size: i32) {
 }
 
 /// Draw block with "eye candy" aesthetics (3D bevel, metallic shine)
-fn draw_block_with_gradient(canvas: &mut Canvas<Window>, block: &Block) {
-    let rect = block.rect();
-    
-    // 1. Base fill (slightly darker for depth)
-    let r = (block.color.r as f32 * 0.7) as u8;
-    let g = (block.color.g as f32 * 0.7) as u8;
-    let b = (block.color.b as f32 * 0.7) as u8;
-    canvas.set_draw_color(SdlColor::RGB(r, g, b));
-    let _ = canvas.fill_rect(rect);
-    
-    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
-
-    // 2. Metallic/Glass Shine (Horizon line effect)
-    for y in 0..rect.height() {
-        let factor = y as f32 / rect.height() as f32;
-        // Create a "horizon" reflection at 40% height
-        let alpha = if factor < 0.4 {
-            ((1.0 - factor / 0.4) * 120.0) as u8 // Fade out from top
-        } else if factor < 0.5 {
-            ((factor - 0.4) / 0.1 * 200.0) as u8 // Sharp bright line
-        } else {
-            ((1.0 - (factor - 0.5) / 0.5) * 80.0) as u8 // Fade out to bottom
-        };
-        
-        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
-        let _ = canvas.draw_line(
-            Point::new(rect.x(), rect.y() + y as i32),
-            Point::new(rect.x() + rect.width() as i32, rect.y() + y as i32),
-        );
-    }
-    
-    // 3. Inner Glow (Color boost)
-    let glow_rect = Rect::new(rect.x() + 2, rect.y() + 2, rect.width() - 4, rect.height() - 4);
-    canvas.set_draw_color(SdlColor::RGBA(block.color.r, block.color.g, block.color.b, 150));
-    let _ = canvas.draw_rect(glow_rect);
-
-    // 4. 3D Bevel Borders
-    // Top and Left (Highlight)
-    canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 200));
-    let _ = canvas.draw_line(rect.top_left(), rect.top_right());
-    let _ = canvas.draw_line(rect.top_left(), rect.bottom_left());
-    
-    // Bottom and Right (Shadow)
-    canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 180));
-    let _ = canvas.draw_line(rect.bottom_left(), rect.bottom_right());
-    let _ = canvas.draw_line(rect.top_right(), rect.bottom_right());
-
-    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+fn draw_block_with_gradient(canvas: &mut Canvas<Window>, block: &Block, cache: &TextureCache) {
+    let color_idx = BLOCK_COLORS.iter().position(|&c| c.r == block.color.r && c.g == block.color.g && c.b == block.color.b).unwrap_or(0);
+    let _ = canvas.copy(&cache.blocks[color_idx], None, Some(block.rect()));
 }
 
 /// Draw paddle with enhanced sci-fi/metallic aesthetics and rounded corners
-fn draw_paddle_with_glass(canvas: &mut Canvas<Window>, paddle: &Paddle) {
-    let radius = 10; // Corner radius
+fn draw_paddle_with_glass(canvas: &mut Canvas<Window>, paddle: &Paddle, cache: &TextureCache) {
     let x = paddle.x;
     let y = paddle.y;
     let w = paddle.width;
-    let h = 20; // Fixed height for visual consistency, or use paddle.height if it existed
-    // Note: Paddle struct doesn't have height, assuming 20 based on previous code or standard
-    // Actually let's use a fixed height of 20 as per previous implementation logic
     let h = 20; 
 
-    // 1. Main Body - Dark Metallic Blue/Grey (Pixel-by-pixel for rounded shape)
-    
-    canvas.set_draw_color(SdlColor::RGB(40, 50, 70));
-    
-    // Center rect
-    let _ = canvas.fill_rect(Rect::new(x + radius, y, (w - 2 * radius) as u32, h as u32));
-    // Left/Right rects (between corners)
-    let _ = canvas.fill_rect(Rect::new(x, y + radius, radius as u32, (h - 2 * radius) as u32));
-    let _ = canvas.fill_rect(Rect::new(x + w - radius, y + radius, radius as u32, (h - 2 * radius) as u32));
-    
-    // 4 Corners (filled circles)
-    let corners = [
-        (x + radius, y + radius),
-        (x + w - radius, y + radius),
-        (x + radius, y + h - radius),
-        (x + w - radius, y + h - radius),
-    ];
-    
-    for &(cx, cy) in &corners {
-        for dy in -radius..=radius {
-            for dx in -radius..=radius {
-                if dx*dx + dy*dy <= radius*radius {
-                    let _ = canvas.draw_point(Point::new(cx + dx, cy + dy));
-                }
-            }
-        }
-    }
+    // 1. Draw cached body
+    let texture = if paddle.width > paddle.normal_width { &cache.paddle_long } else { &cache.paddle_normal };
+    let _ = canvas.copy(texture, None, Some(paddle.rect()));
     
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
 
     // 2. Energy Core (Glowing center strip)
     let core_height = 4;
     let core_y = y + (h - core_height) / 2;
+    let radius = 10;
     let core_rect = Rect::new(x + radius + 2, core_y, (w - 2 * radius - 4) as u32, core_height as u32);
     
     // Pulsating core glow
@@ -256,38 +489,6 @@ fn draw_paddle_with_glass(canvas: &mut Canvas<Window>, paddle: &Paddle) {
         let _ = canvas.fill_rect(core_rect);
     }
     
-    // 3. Metallic Gradient on body
-    for line_y in 0..h {
-        if line_y >= (h - core_height) / 2 && line_y < (h + core_height) / 2 {
-            continue; // Skip core
-        }
-        
-        let factor = line_y as f32 / h as f32;
-        let alpha = ((1.0 - (factor - 0.5).abs() * 2.0) * 100.0) as u8;
-        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
-        
-        // Draw horizontal line clipped to rounded shape
-        let mut start_x = 0;
-        let mut end_x = w;
-        
-        if line_y < radius {
-            let dy = radius - line_y;
-            let dx = ((radius * radius - dy * dy) as f32).sqrt() as i32;
-            start_x = radius - dx;
-            end_x = w - radius + dx;
-        } else if line_y >= h - radius {
-            let dy = line_y - (h - radius);
-            let dx = ((radius * radius - dy * dy) as f32).sqrt() as i32;
-            start_x = radius - dx;
-            end_x = w - radius + dx;
-        }
-        
-        let _ = canvas.draw_line(
-            Point::new(x + start_x, y + line_y),
-            Point::new(x + end_x, y + line_y),
-        );
-    }
-
     // 4. Thruster/Engine Lights on ends
     let light_width = 4;
     let left_light = Rect::new(x + 2, y + h/2 - 6, light_width, 12);
@@ -302,46 +503,6 @@ fn draw_paddle_with_glass(canvas: &mut Canvas<Window>, paddle: &Paddle) {
     let _ = canvas.fill_rect(left_light);
     let _ = canvas.fill_rect(right_light);
 
-    // 5. Tech Borders (Outline)
-    canvas.set_draw_color(SdlColor::RGBA(100, 200, 255, 150));
-    
-    // Top/Bottom lines
-    let _ = canvas.draw_line(Point::new(x + radius, y), Point::new(x + w - radius, y));
-    let _ = canvas.draw_line(Point::new(x + radius, y + h - 1), Point::new(x + w - radius, y + h - 1));
-    // Side lines
-    let _ = canvas.draw_line(Point::new(x, y + radius), Point::new(x, y + h - radius));
-    let _ = canvas.draw_line(Point::new(x + w - 1, y + radius), Point::new(x + w - 1, y + h - radius));
-    
-    // Corner arcs
-    // Top-left
-    for i in 0..=90 {
-        let rad = (i as f32 + 180.0).to_radians();
-        let px = x + radius + (radius as f32 * rad.cos()) as i32;
-        let py = y + radius + (radius as f32 * rad.sin()) as i32;
-        let _ = canvas.draw_point(Point::new(px, py));
-    }
-    // Top-right
-    for i in 0..=90 {
-        let rad = (i as f32 + 270.0).to_radians();
-        let px = x + w - radius + (radius as f32 * rad.cos()) as i32;
-        let py = y + radius + (radius as f32 * rad.sin()) as i32;
-        let _ = canvas.draw_point(Point::new(px, py));
-    }
-    // Bottom-right
-    for i in 0..=90 {
-        let rad = (i as f32).to_radians();
-        let px = x + w - radius + (radius as f32 * rad.cos()) as i32;
-        let py = y + h - radius + (radius as f32 * rad.sin()) as i32;
-        let _ = canvas.draw_point(Point::new(px, py));
-    }
-    // Bottom-left
-    for i in 0..=90 {
-        let rad = (i as f32 + 90.0).to_radians();
-        let px = x + radius + (radius as f32 * rad.cos()) as i32;
-        let py = y + h - radius + (radius as f32 * rad.sin()) as i32;
-        let _ = canvas.draw_point(Point::new(px, py));
-    }
-    
     // SPIN EFFECT: Outer Aura
     if paddle.spin_intensity > 0.2 {
         let aura_alpha = (paddle.spin_intensity * 100.0) as u8;
@@ -363,8 +524,10 @@ fn draw_bonus_icon(canvas: &mut Canvas<Window>, bonus: &Bonus) {
     
     // Determine color based on bonus type
     let (r, g, b) = match bonus.bonus_type {
-        BonusType::ExtraBall => (100, 150, 255),  // Blue
-        BonusType::LongPaddle => (100, 255, 100),  // Green
+        BonusType::ExtraBall => (255, 50, 50),   // Red
+        BonusType::LongPaddle => (100, 255, 100), // Green
+        BonusType::GhostBall => (200, 200, 200),  // Grey
+        BonusType::Rocket => (255, 165, 0),       // Orange
     };
 
     // Draw capsule body - transparent glass with color tint
@@ -449,6 +612,14 @@ fn draw_bonus_icon(canvas: &mut Canvas<Window>, bonus: &Bonus) {
             // Horizontal bar shadow
             let _ = canvas.fill_rect(Rect::new(cx - 8, cy - 2 + 1, 16, 5));
         }
+        BonusType::GhostBall => {
+            // Ghost icon shadow (circle)
+            let _ = canvas.fill_rect(Rect::new(cx - 6, cy - 6 + 1, 12, 12));
+        }
+        BonusType::Rocket => {
+            // Rocket shadow (triangle)
+            let _ = canvas.fill_rect(Rect::new(cx - 3, cy - 6 + 1, 6, 12));
+        }
     }
     
     // Actual symbol (bright and clear)
@@ -469,6 +640,14 @@ fn draw_bonus_icon(canvas: &mut Canvas<Window>, bonus: &Bonus) {
             // Horizontal bar shadow
             let _ = canvas.fill_rect(Rect::new(cx - 8, cy - 2 + 1, 16, 5));
         }
+        BonusType::GhostBall => {
+            // Ghost icon (circle)
+            let _ = canvas.fill_rect(Rect::new(cx - 6, cy - 6, 12, 12));
+        }
+        BonusType::Rocket => {
+            // Rocket (triangle)
+            let _ = canvas.fill_rect(Rect::new(cx - 3, cy - 6, 6, 12));
+        }
     }
     
     // Actual symbol (bright and clear)
@@ -488,6 +667,14 @@ fn draw_bonus_icon(canvas: &mut Canvas<Window>, bonus: &Bonus) {
         BonusType::LongPaddle => {
             // Horizontal bar
             let _ = canvas.fill_rect(Rect::new(cx - 8, cy - 2, 16, 5));
+        }
+        BonusType::GhostBall => {
+            // Ghost icon
+            let _ = canvas.fill_rect(Rect::new(cx - 6, cy - 6, 12, 12));
+        }
+        BonusType::Rocket => {
+            // Rocket
+            let _ = canvas.fill_rect(Rect::new(cx - 3, cy - 6, 6, 12));
         }
     }
     
@@ -848,6 +1035,7 @@ pub fn render_game(
     heart_texture: Option<&Texture>,
     font: &Font,
     fps: f32,
+    cache: &mut TextureCache,
 ) {
     // Draw background
     if game.current_level > 6 {
@@ -871,17 +1059,50 @@ pub fn render_game(
     // Draw blocks with gradient and glass effects
     for block in &game.blocks {
         if block.active {
-            draw_block_with_gradient(canvas, block);
+            draw_block_with_gradient(canvas, block, cache);
         }
     }
 
     // Draw paddle with glass effect
-    draw_paddle_with_glass(canvas, &game.paddle);
+    draw_paddle_with_glass(canvas, &game.paddle, cache);
+    
+    // Draw cannon on paddle if rocket ammo is available
+    if game.paddle.rocket_ammo > 0 {
+        let cannon_x = game.paddle.x + game.paddle.width / 2 - 5;
+        let cannon_y = game.paddle.y - 15;
+        
+        // Cannon barrel (dark grey)
+        canvas.set_draw_color(SdlColor::RGB(80, 80, 80));
+        let _ = canvas.fill_rect(Rect::new(cannon_x + 3, cannon_y, 4, 10));
+        
+        // Cannon base (darker grey)
+        canvas.set_draw_color(SdlColor::RGB(60, 60, 60));
+        let _ = canvas.fill_rect(Rect::new(cannon_x, cannon_y + 8, 10, 5));
+        
+        // Cannon tip (bright to indicate active)
+        canvas.set_draw_color(SdlColor::RGB(255, 100, 0));
+        let _ = canvas.fill_rect(Rect::new(cannon_x + 3, cannon_y, 4, 2));
+        
+        // Blinking text: "press space to launch"
+        // Blink every 30 frames (about 0.5 seconds at 60 FPS)
+        if (game.frame_count / 30) % 2 == 0 {
+            let text = "press space to launch";
+            if let Ok(surface) = font.render(text).blended(SdlColor::RGB(255, 255, 100)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let text_x = game.paddle.x + game.paddle.width / 2 - surface.width() as i32 / 2;
+                    let text_y = game.paddle.y - 35;
+                    let target = Rect::new(text_x, text_y, surface.width(), surface.height());
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
+        }
+    }
 
     // Draw balls (shiny circular metal balls)
     for ball in &game.balls {
         if ball.active {
-            draw_shiny_ball(canvas, ball, font);
+            draw_shiny_ball(canvas, ball, font, cache, game.frame_count);
         }
     }
 
@@ -892,12 +1113,53 @@ pub fn render_game(
         }
     }
 
+    // Draw rocket projectiles
+    for rocket in &game.rockets {
+        if rocket.active {
+            let rx = rocket.x as i32;
+            let ry = rocket.y as i32;
+            
+            // Rocket body (orange)
+            canvas.set_draw_color(SdlColor::RGB(255, 100, 0));
+            let _ = canvas.fill_rect(Rect::new(rx + 2, ry + 4, 6, 12));
+            
+            // Rocket nose cone (red triangle)
+            canvas.set_draw_color(SdlColor::RGB(255, 50, 50));
+            for i in 0..4 {
+                let _ = canvas.draw_line(
+                    Point::new(rx + 5, ry + i),
+                    Point::new(rx + 2 + i, ry + 4),
+                );
+                let _ = canvas.draw_line(
+                    Point::new(rx + 5, ry + i),
+                    Point::new(rx + 8 - i, ry + 4),
+                );
+            }
+            
+            // Rocket fins (dark orange)
+            canvas.set_draw_color(SdlColor::RGB(200, 80, 0));
+            let _ = canvas.fill_rect(Rect::new(rx, ry + 12, 3, 4));      // Left fin
+            let _ = canvas.fill_rect(Rect::new(rx + 7, ry + 12, 3, 4));  // Right fin
+            
+            // Flame trail (yellow/orange gradient)
+            canvas.set_draw_color(SdlColor::RGB(255, 255, 100));
+            let _ = canvas.fill_rect(Rect::new(rx + 3, ry + 16, 4, 2));
+            canvas.set_draw_color(SdlColor::RGB(255, 200, 50));
+            let _ = canvas.fill_rect(Rect::new(rx + 3, ry + 18, 4, 2));
+        }
+    }
+
     // Draw particles
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     for particle in &game.particles {
         draw_particle(canvas, particle);
     }
     canvas.set_blend_mode(sdl2::render::BlendMode::None);
+    
+    // Draw portal if active
+    if game.portal_active {
+        draw_portal(canvas, game.frame_count);
+    }
 
     // Draw HUD
     render_hud(canvas, game, heart_texture, font, fps);
@@ -914,6 +1176,45 @@ pub fn render_game(
     }
 
     canvas.present();
+}
+
+/// Draw swirling portal at center of screen
+fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64) {
+    let cx = WINDOW_WIDTH as i32 / 2;
+    let cy = WINDOW_HEIGHT as i32 / 2;
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    
+    // Draw swirling portal rings
+    for i in 0..10 {
+        let radius = 150 - i * 10;
+        let rotation = (frame_count as f32 * 0.1) + (i as f32 * 0.3);
+        
+        // Pulsing alpha
+        let alpha = ((frame_count as f32 * 0.05 + i as f32 * 0.5).sin() * 100.0 + 155.0) as u8;
+        
+        // Purple gradient
+        let color_shift = (i as f32 / 10.0 * 100.0) as u8;
+        
+        // Draw ring segments
+        for j in 0..32 {
+            let angle = (j as f32 / 32.0) * std::f32::consts::PI * 2.0 + rotation;
+            let x = cx + (angle.cos() * radius as f32) as i32;
+            let y = cy + (angle.sin() * radius as f32) as i32;
+            
+            // Draw filled circle using pixel drawing
+            canvas.set_draw_color(SdlColor::RGBA(150 + color_shift, 50, 255 - color_shift, alpha));
+            for dy in -4..=4 {
+                for dx in -4..=4 {
+                    if dx*dx + dy*dy <= 16 {
+                        let _ = canvas.draw_point(Point::new(x + dx, y + dy));
+                    }
+                }
+            }
+        }
+    }
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::None);
 }
 
 fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&Texture>, font: &Font, fps: f32) {
@@ -947,7 +1248,7 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
         }
     }
     
-    // Draw level indicator
+    // Draw level indicator (CENTER TOP)
     let level_text = if game.current_level <= 9 {
         format!("Level {}/9", game.current_level)
     } else {
@@ -957,6 +1258,34 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
         let texture_creator = canvas.texture_creator();
         if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
             let target = Rect::new(WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2, 10, surface.width(), surface.height());
+            let _ = canvas.copy(&texture, None, Some(target));
+        };
+    }
+    
+    // Draw MAX SPEED indicator (BOTTOM LEFT)
+    let max_speed_text = format!("MAX SPEED: {} px/s", game.max_speed as i32);
+    
+    // Check if new record was just broken (within last 2 seconds / 120 frames)
+    let frames_since_record = game.frame_count.saturating_sub(game.max_speed_record_frame);
+    let is_fresh_record = frames_since_record < 120;
+    
+    // Use gold pulsing color if fresh record, otherwise normal white
+    let color = if is_fresh_record {
+        let pulse = (game.frame_count as f32 * 0.15).sin() * 0.3 + 0.7;
+        SdlColor::RGB(
+            (255.0 * pulse) as u8,
+            (255.0 * pulse) as u8,
+            (100.0 * pulse + 100.0) as u8,
+        )
+    } else {
+        SdlColor::RGB(200, 200, 200)
+    };
+    
+    if let Ok(surface) = font.render(&max_speed_text).blended(color) {
+        let texture_creator = canvas.texture_creator();
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            // Position at bottom left
+            let target = Rect::new(10, WINDOW_HEIGHT as i32 - 40, surface.width(), surface.height());
             let _ = canvas.copy(&texture, None, Some(target));
         };
     }
@@ -1117,6 +1446,25 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             render_button(canvas, &menu.resolution_button, font);
             render_button(canvas, &menu.fullscreen_button, font);
             render_button(canvas, &menu.back_button, font);
+        }
+        MenuState::ResolutionConfirm => {
+            // Title
+            let title = format!("Keep Resolution? {:.1}s", menu.confirmation_timer);
+            if let Ok(surface) = font.render(&title).blended(SdlColor::RGB(255, 200, 100)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let target = Rect::new(
+                        WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
+                        WINDOW_HEIGHT as i32 / 2 - 50,
+                        surface.width(),
+                        surface.height(),
+                    );
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
+            
+            render_button(canvas, &menu.confirm_button, font);
+            render_button(canvas, &menu.cancel_button, font);
         }
     }
 }

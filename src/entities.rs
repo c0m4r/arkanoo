@@ -18,6 +18,8 @@ pub const BLOCK_OFFSET_Y: i32 = 80;
 pub enum BonusType {
     ExtraBall,
     LongPaddle,
+    GhostBall,
+    Rocket,
 }
 
 #[derive(Clone, Copy)]
@@ -40,6 +42,8 @@ pub struct Paddle {
     pub normal_width: i32,
     pub long_width: i32,
     pub bonus_timer: u32,
+    pub ghost_timer: u32, // Timer for Ghost Ball mode
+    pub rocket_ammo: u32, // Ammo for Rocket bonus
     pub last_x: i32,
     pub vel_x: i32,
     pub spin_intensity: f32,
@@ -55,6 +59,8 @@ impl Paddle {
             normal_width,
             long_width: normal_width + 40,
             bonus_timer: 0,
+            ghost_timer: 0,
+            rocket_ammo: 0,
             last_x: (WINDOW_WIDTH as i32 - normal_width) / 2,
             vel_x: 0,
             spin_intensity: 0.0,
@@ -78,6 +84,14 @@ impl Paddle {
         self.bonus_timer = 300; // 5 seconds at 60 FPS
     }
 
+    pub fn activate_ghost_bonus(&mut self) {
+        self.ghost_timer = 600; // 10 seconds at 60 FPS
+    }
+
+    pub fn add_rockets(&mut self) {
+        self.rocket_ammo += 1; // Add 1 rocket
+    }
+
     pub fn update(&mut self) {
         self.vel_x = self.x - self.last_x;
         self.last_x = self.x;
@@ -94,6 +108,10 @@ impl Paddle {
                 self.width = self.normal_width;
             }
         }
+
+        if self.ghost_timer > 0 {
+            self.ghost_timer -= 1;
+        }
     }
 
     pub fn rect(&self) -> Rect {
@@ -108,6 +126,7 @@ pub struct Ball {
     pub vel_y: f32,
     pub active: bool,
     pub spin: f32,
+    pub trail_positions: std::collections::VecDeque<(f32, f32)>, // Recent positions for trail effect
 }
 
 impl Ball {
@@ -119,12 +138,35 @@ impl Ball {
             vel_y: -4.0,
             active: true,
             spin: 0.0,
+            trail_positions: std::collections::VecDeque::new(),
         }
     }
 
     pub fn update(&mut self) {
         if !self.active {
             return;
+        }
+        
+        // Calculate speed
+        let speed = (self.vel_x.powi(2) + self.vel_y.powi(2)).sqrt();
+        let speed_px_sec = speed * 60.0; // Convert to px/s
+        
+        // Track trail positions based on speed
+        if speed_px_sec >= 1400.0 {
+            // Ultra-fast: 20 positions (2x longer trail)
+            self.trail_positions.push_back((self.x, self.y));
+            if self.trail_positions.len() > 20 {
+                self.trail_positions.pop_front();
+            }
+        } else if speed_px_sec >= 800.0 {
+            // Normal fast: 8 positions
+            self.trail_positions.push_back((self.x, self.y));
+            if self.trail_positions.len() > 8 {
+                self.trail_positions.pop_front();
+            }
+        } else {
+            // Clear trail when slowing down
+            self.trail_positions.clear();
         }
         
         // Apply spin (Magnus effect approximation)
@@ -218,6 +260,33 @@ impl Bonus {
 
     pub fn rect(&self) -> Rect {
         Rect::new(self.x as i32, self.y as i32, 40, 40)
+    }
+}
+
+pub struct Rocket {
+    pub x: f32,
+    pub y: f32,
+    pub active: bool,
+}
+
+impl Rocket {
+    pub fn new(x: f32, y: f32) -> Self {
+        Rocket {
+            x,
+            y,
+            active: true,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.y -= 8.0; // Move up fast
+        if self.y < 0.0 {
+            self.active = false;
+        }
+    }
+
+    pub fn rect(&self) -> Rect {
+        Rect::new(self.x as i32, self.y as i32, 10, 20)
     }
 }
 

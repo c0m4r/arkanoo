@@ -34,8 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut canvas = window.into_canvas().build()?;
     
-    // Set logical size for proper scaling in fullscreen
-    canvas.set_logical_size(WINDOW_WIDTH, WINDOW_HEIGHT)?;
+    // Set initial scale
+    let _ = canvas.set_scale(1.0, 1.0);
     
     // Hide cursor and lock it to the window
     sdl_context.mouse().show_cursor(false);
@@ -49,11 +49,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     };
-    let font = ttf_context.load_font(font_path, 24)?;
+    
+    // Helper to load font with scaling
+    let load_font = |scale: f32| -> Result<sdl2::ttf::Font, String> {
+        let font_size = (24.0 * scale) as u16;
+        ttf_context.load_font(font_path, font_size).map_err(|e| e.to_string())
+    };
+
+    let mut font = load_font(1.0)?;
 
     // Load background image (will be loaded dynamically per level)
     let texture_creator = canvas.texture_creator();
     
+    // Initialize texture cache
+    let mut texture_cache = crate::rendering::TextureCache::new(&mut canvas, &texture_creator)?;
+
     // Load heart texture
     let heart_texture = texture_creator
         .load_texture("assets/heart.png")
@@ -83,21 +93,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut frame_times: Vec<std::time::Instant> = Vec::new();
     let mut current_fps = 60.0;
     
-    // Available resolutions
-    let resolutions = vec![
-        (1280, 720),
-        (1920, 1080),
-        (2560, 1440),
-    ];
-    let mut current_resolution_idx = 0;
-    
     // Cache background and track current level
     let mut current_level = game.current_level;
     let mut background = texture_creator
         .load_texture(&game.get_background_path())
         .ok();
 
+    let target_frame_time = Duration::from_micros(1_000_000 / 60);
+
     'running: loop {
+        let frame_start = std::time::Instant::now();
+
         // Reload background only if level changed
         if game.current_level != current_level {
             current_level = game.current_level;
@@ -105,6 +111,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .load_texture(&game.get_background_path())
                 .ok();
         }
+
+        // Handle resolution confirmation timer
+        let dt = 1.0 / 60.0; // Approximate delta time
+        if menu.update_timer(dt) {
+            // Timer expired, revert resolution
+            let (w, h) = menu.resolutions[menu.current_resolution_idx];
+            let _ = canvas.window_mut().set_size(w, h);
+            let scale_x = w as f32 / WINDOW_WIDTH as f32;
+            let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+            let _ = canvas.set_scale(scale_x, scale_y);
+            
+            // Reload font
+            if let Ok(new_font) = load_font(scale_y) {
+                font = new_font;
+            }
+            
+            menu.state = MenuState::Settings;
+            menu.pending_resolution_idx = None;
+            menu.resolution_button.label = format!("{}x{}", w, h);
+        }
+
         // Handle events
         for event in event_pump.poll_iter() {
             match event {
@@ -122,6 +149,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             sdl_context.mouse().show_cursor(false);
                             let _ = canvas.window_mut().set_grab(true);
+                        }
+                    }
+                }
+                
+                Event::Window { win_event, .. } => {
+                    if let sdl2::event::WindowEvent::Maximized = win_event {
+                        // Get the current window size
+                        let (w, h) = canvas.window().size();
+                        
+                        // Update resolution to match window size
+                        let scale_x = w as f32 / WINDOW_WIDTH as f32;
+                        let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+                        let _ = canvas.set_scale(scale_x, scale_y);
+                        
+                        // Reload font with new scale
+                        if let Ok(new_font) = load_font(scale_y) {
+                            font = new_font;
                         }
                     }
                 }
@@ -148,6 +192,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
                     if game.state == GameState::Victory {
                         game.start_next_level(); // Starts level 10 (Infinite Mode)
+                    } else if game.state == GameState::LevelTransition {
+                        game.start_next_level();
+                        audio_manager.play_level_music(game.current_level);
                     }
                 }
 
@@ -165,10 +212,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
+                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                    if game.state == GameState::Playing {
+                        let mut sound_to_play = None;
+                        game.fire_rocket(&mut |effect| sound_to_play = Some(effect));
+                        if let Some(effect) = sound_to_play {
+                            match effect {
+                                crate::game::SoundEffect::Bounce => audio_manager.play_bounce(),
+                                crate::game::SoundEffect::Oh => audio_manager.play_oh(),
+                                crate::game::SoundEffect::Load => audio_manager.play_load(),
+                                crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+                            }
+                        }
+                    }
+                }
+
                 Event::MouseMotion { x, y, .. } => {
+                    // Adjust mouse coordinates for scaling
+                    let (scale_x, scale_y) = canvas.scale();
+                    let adj_x = (x as f32 / scale_x) as i32;
+                    let adj_y = (y as f32 / scale_y) as i32;
+
                     if game.state == GameState::Paused {
-                        menu.update_hover(x, y);
-                        menu.update_slider(x, y, mouse_down);
+                        menu.update_hover(adj_x, adj_y);
+                        menu.update_slider(adj_x, adj_y, mouse_down);
                         
                         // Update audio volume from slider
                         if menu.state == MenuState::Settings {
@@ -179,15 +246,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     } else if game.state == GameState::Playing {
                         // Mouse control for paddle - center paddle on mouse X position
-                        let paddle_center_x = x - (game.paddle.width / 2);
+                        let paddle_center_x = adj_x - (game.paddle.width / 2);
                         game.paddle.set_x(paddle_center_x);
                     }
                 }
 
                 Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
                     mouse_down = true;
+                    // Adjust mouse coordinates for scaling
+                    let (scale_x, scale_y) = canvas.scale();
+                    let adj_x = (x as f32 / scale_x) as i32;
+                    let adj_y = (y as f32 / scale_y) as i32;
+
                     if game.state == GameState::Paused {
-                        let action = handle_menu_click(&menu, x, y);
+                        let action = handle_menu_click(&menu, adj_x, adj_y);
                         match action {
                             MenuAction::Resume => {
                                 game.toggle_pause();
@@ -217,12 +289,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::CycleResolution => {
                                 // Cycle to next resolution
-                                current_resolution_idx = (current_resolution_idx + 1) % resolutions.len();
-                                let (width, height) = resolutions[current_resolution_idx];
+                                let next_idx = (menu.current_resolution_idx + 1) % menu.resolutions.len();
+                                menu.pending_resolution_idx = Some(next_idx);
+                                let (width, height) = menu.resolutions[next_idx];
                                 menu.resolution_button.label = format!("{}x{}", width, height);
                                 
                                 // Apply resolution change
                                 let _ = canvas.window_mut().set_size(width, height);
+                                let scale_x = width as f32 / WINDOW_WIDTH as f32;
+                                let scale_y = height as f32 / WINDOW_HEIGHT as f32;
+                                let _ = canvas.set_scale(scale_x, scale_y);
+                                
+                                // Reload font
+                                if let Ok(new_font) = load_font(scale_y) {
+                                    font = new_font;
+                                }
+
+                                // Start confirmation
+                                menu.state = MenuState::ResolutionConfirm;
+                                menu.confirmation_timer = 5.0;
+                            }
+                            MenuAction::ConfirmResolution => {
+                                if let Some(idx) = menu.pending_resolution_idx {
+                                    menu.current_resolution_idx = idx;
+                                }
+                                menu.pending_resolution_idx = None;
+                                menu.state = MenuState::Settings;
+                            }
+                            MenuAction::RevertResolution => {
+                                // Revert
+                                let (w, h) = menu.resolutions[menu.current_resolution_idx];
+                                let _ = canvas.window_mut().set_size(w, h);
+                                let scale_x = w as f32 / WINDOW_WIDTH as f32;
+                                let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+                                let _ = canvas.set_scale(scale_x, scale_y);
+                                
+                                // Reload font
+                                if let Ok(new_font) = load_font(scale_y) {
+                                    font = new_font;
+                                }
+                                
+                                menu.state = MenuState::Settings;
+                                menu.pending_resolution_idx = None;
+                                menu.resolution_button.label = format!("{}x{}", w, h);
                             }
                             MenuAction::ToggleFullscreen => {
                                 is_fullscreen = !is_fullscreen;
@@ -262,11 +371,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Update game
-        let mut should_play_sound = false;
-        game.update(&mut || should_play_sound = true);
+        let mut sound_to_play = None;
+        game.update(&mut |effect| sound_to_play = Some(effect));
         
-        if should_play_sound {
-            audio_manager.play_bounce();
+        if let Some(effect) = sound_to_play {
+            match effect {
+                crate::game::SoundEffect::Bounce => audio_manager.play_bounce(),
+                crate::game::SoundEffect::Oh => audio_manager.play_oh(),
+                crate::game::SoundEffect::Load => audio_manager.play_load(),
+                crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+            }
         }
 
         // Update audio (for song transitions)
@@ -279,10 +393,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         current_fps = frame_times.len() as f32;
 
         // Render
-        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), &font, current_fps);
+        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), &font, current_fps, &mut texture_cache);
 
         // Target 60 FPS
-        std::thread::sleep(Duration::from_millis(16));
+        let elapsed = frame_start.elapsed();
+        if elapsed < target_frame_time {
+            std::thread::sleep(target_frame_time - elapsed);
+        }
     }
 
     audio_manager.stop_music();

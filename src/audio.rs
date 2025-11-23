@@ -2,8 +2,11 @@ use sdl2::mixer::{Channel, Chunk, Music};
 use std::path::Path;
 use rand::Rng;
 
-pub struct AudioManager {
+    pub struct AudioManager {
     bounce_sound: Option<Chunk>,
+    oh_sound: Option<Chunk>,
+    load_sound: Option<Chunk>,
+    breaking_glass_sound: Option<Chunk>,
     songs: Vec<String>,
     current_song_index: usize,
     volume: i32,
@@ -25,6 +28,24 @@ impl AudioManager {
 
         if bounce_sound.is_none() {
             eprintln!("Warning: Could not load ball.mp3, ball_bounce.mp3, or ball_bounce.wav");
+        }
+
+        // Load oh.mp3
+        let oh_sound = Chunk::from_file(Path::new("assets/oh.mp3")).ok();
+        if oh_sound.is_none() {
+            eprintln!("Warning: Could not load assets/oh.mp3");
+        }
+
+        // Load load.mp3
+        let load_sound = Chunk::from_file(Path::new("assets/load.mp3")).ok();
+        if load_sound.is_none() {
+            eprintln!("Warning: Could not load assets/load.mp3");
+        }
+
+        // Load breaking-glass.mp3
+        let breaking_glass_sound = Chunk::from_file(Path::new("assets/breaking-glass.mp3")).ok();
+        if breaking_glass_sound.is_none() {
+            eprintln!("Warning: Could not load assets/breaking-glass.mp3");
         }
 
         // Setup song playlist
@@ -57,6 +78,9 @@ impl AudioManager {
 
         Ok(AudioManager {
             bounce_sound,
+            oh_sound,
+            load_sound,
+            breaking_glass_sound,
             songs,
             current_song_index,
             volume: 32, // Default to 50% volume (max is 128)
@@ -68,6 +92,30 @@ impl AudioManager {
     pub fn play_bounce(&self) {
         if !self.muted {
             if let Some(ref sound) = self.bounce_sound {
+                let _ = Channel::all().play(sound, 0);
+            }
+        }
+    }
+
+    pub fn play_oh(&self) {
+        if !self.muted {
+            if let Some(ref sound) = self.oh_sound {
+                let _ = Channel::all().play(sound, 0);
+            }
+        }
+    }
+
+    pub fn play_load(&self) {
+        if !self.muted {
+            if let Some(ref sound) = self.load_sound {
+                let _ = Channel::all().play(sound, 0);
+            }
+        }
+    }
+
+    pub fn play_breaking_glass(&self) {
+        if !self.muted {
+            if let Some(ref sound) = self.breaking_glass_sound {
                 let _ = Channel::all().play(sound, 0);
             }
         }
