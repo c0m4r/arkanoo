@@ -6,14 +6,11 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 
 ## Features
 
-- 🎯 **6 Levels with 200 Blocks** - Up to 200 rainbow-colored blocks across 6 unique levels with gradient and glass effects
-- 📋 **Unique Level Patterns**:
-  - **Level 1**: Full Grid (200 blocks)
-  - **Level 2**: Checkerboard Pattern
-  - **Level 3**: Horizontal Stripes
-  - **Level 4**: Pillars with Borders
-  - **Level 5**: Pyramid/Triangle Shape
-  - **Level 6**: Diamond/X Shape
+- 🎯 **Campaign & Infinite Mode** - 9 handcrafted levels followed by endless procedurally generated stages.
+- 📋 **Level Patterns**:
+  - **Levels 1-9**: Unique handcrafted patterns (Grid, Checkerboard, Stripes, Pillars, etc.)
+  - **Levels 10+**: Infinite procedurally generated block layouts.
+- 🌪️ **Spin Mechanic** - Curve the ball's trajectory by moving the paddle during impact.
 - 🎁 **Bonus System** - Random drops (15% chance):
   - ⚽ Extra Ball - Spawns a second ball (red circle icon)
   - 📏 Long Paddle - Extends paddle width temporarily (green bar icon)
@@ -26,7 +23,7 @@ A fully-featured Arkanoid/Breakout game written in Rust.
   - Fullscreen toggle
 - 🎵 **Dynamic Music** - 6 unique songs, one for each level
 - 🔊 **Audio** - MP3 support for ball bounce sounds and background music
-- 🌆 **Custom Backgrounds** - 6 unique PNG backgrounds (one per level)
+- 🌆 **Procedural Backgrounds** - 6 distinct animated themes (Matrix, Nebula, Tron Grid, etc.) that are randomized for infinite variety.
 - 🖱️ **Mouse Control** - Control paddle with mouse movement
 - 🏆 **Level Transitions** - Win animations and prompts between levels
 - ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed
@@ -37,7 +34,8 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 - **Glass Effects** - Semi-transparent overlays on blocks and paddle
 - **Symbolic Bonuses** - Easy-to-recognize icons (ball and paddle symbols)
 - **Heart Lives** - Lives displayed as red heart shapes (PNG texture)
-- **Dynamic Backgrounds** - 6 unique PNG backgrounds that change per level
+- **Procedural Backgrounds** - 6 stunning, randomized themes (Cyber Grid, Star Voyage, Hex Pulse, Aurora Waves, Matrix Rain, Nebula Clouds).
+- **Visual Feedback** - Paddle glows and discharges energy when spin is applied.
 - **Smooth Animations** - Particle effects and transitions
 - **Scalable Graphics** - Resolution options and fullscreen support
 
@@ -158,9 +156,10 @@ The binary will be at `target/release/arkanoo` (approximately 540 KB).
 - Start with **3 lives** (shown as ❤️)
 - Each block destroyed: **+10 points**
 - Collect falling bonuses to gain advantages
-- **6 Levels** with unique block patterns
+- **9-Level Campaign** with unique block patterns
+- **Infinite Mode** unlocks after completing the campaign
 - Clear all blocks in a level to proceed to the next
-- Complete all 6 levels to win!
+- Complete all 9 levels to beat the campaign!
 - Game over if all lives are lost
 
 ## Menu Navigation
