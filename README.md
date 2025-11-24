@@ -2,7 +2,7 @@
 
 A fully-featured Arkanoid/Breakout game written in Rust.
 
-<img width="1280" height="749" alt="image" src="https://github.com/user-attachments/assets/af8daa62-e50f-4c54-9500-6d7bf1cd17b9" />
+<video src="https://github.com/user-attachments/assets/12d6c6f0-f578-4257-993d-558440049dc0"></video>
 
 ## Features
 
