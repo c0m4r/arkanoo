@@ -174,18 +174,38 @@ impl Game {
                 let cx = ball.x + BALL_SIZE as f32 / 2.0;
                 let cy = ball.y + BALL_SIZE as f32 / 2.0;
                 
-                for _ in 0..30 {
-                    let mut rng = rand::thread_rng();
-                    let angle = rng.gen::<f32>() * std::f32::consts::PI * 2.0;
-                    let speed = rng.gen::<f32>() * 8.0 + 4.0;
+                // Icy wave trail effect
+                // Calculate direction opposite to movement
+                let speed_len = (ball.vel_x * ball.vel_x + ball.vel_y * ball.vel_y).sqrt();
+                if speed_len > 0.1 {
+                    let dir_x = -ball.vel_x / speed_len;
+                    let dir_y = -ball.vel_y / speed_len;
                     
-                    self.particles.push(Particle::new(
-                        cx,
-                        cy,
-                        angle.cos() * speed,
-                        angle.sin() * speed,
-                        Color { r: 255, g: 255, b: 100 }, // Gold color for record
-                    ));
+                    // Spawn a few particles behind the ball to form a trail
+                    for _ in 0..5 {
+                        let mut rng = rand::thread_rng();
+                        
+                        // Spread angle slightly for "wave" look
+                        let spread_angle = (rng.gen::<f32>() - 0.5) * 1.0; // +/- 0.5 radians
+                        let angle = dir_y.atan2(dir_x) + spread_angle;
+                        
+                        let speed = rng.gen::<f32>() * 2.0 + 1.0; // Slower, drifting particles
+                        
+                        // Icy colors: Cyan, Light Blue, White
+                        let color = match rng.gen_range(0..3) {
+                            0 => Color { r: 0, g: 255, b: 255 },   // Cyan
+                            1 => Color { r: 100, g: 200, b: 255 }, // Light Blue
+                            _ => Color { r: 200, g: 255, b: 255 }, // White-ish Cyan
+                        };
+
+                        self.particles.push(Particle::new(
+                            cx - dir_x * 10.0, // Spawn slightly behind center
+                            cy - dir_y * 10.0,
+                            angle.cos() * speed,
+                            angle.sin() * speed,
+                            color,
+                        ));
+                    }
                 }
                 
                 // Activate portal at 3600 px/s (only once per level)
