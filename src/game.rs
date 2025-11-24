@@ -102,6 +102,7 @@ impl Game {
         self.state = GameState::Playing;
         self.lost_life_this_level = false; // Reset flag for new level
         self.portal_active = false; // Reset portal for new level
+        self.portal_completion_timer = 0; // Reset timer for new level
         self.max_speed = 0.0; // Reset max speed so portal can trigger again
     }
 
@@ -137,9 +138,27 @@ impl Game {
 
         // Track particles to spawn
         let mut particles_to_spawn = Vec::new();
+        let mut portal_just_activated = false;
 
         // Update balls
-        for ball in &mut self.balls {
+        for (i, ball) in self.balls.iter_mut().enumerate() {
+            // If portal is active, override physics with orbital movement
+            if self.portal_active {
+                let cx = WINDOW_WIDTH as f32 / 2.0;
+                let cy = WINDOW_HEIGHT as f32 / 2.0;
+                let radius = 150.0; // Match portal outer ring
+                
+                // Calculate angle based on time and ball index for distribution
+                // Spin speed: 0.1 radians per frame
+                let angle = (self.frame_count as f32 * 0.1) + (i as f32 * (std::f32::consts::PI * 2.0 / 3.0));
+                
+                ball.x = cx + angle.cos() * radius - BALL_SIZE as f32 / 2.0;
+                ball.y = cy + angle.sin() * radius - BALL_SIZE as f32 / 2.0;
+                
+                // Skip normal physics
+                continue;
+            }
+
             ball.update();
             
             // Calculate current speed
@@ -172,6 +191,7 @@ impl Game {
                 // Activate portal at 3600 px/s (only once per level)
                 if self.max_speed >= 3600.0 && !self.portal_active {
                     self.portal_active = true;
+                    portal_just_activated = true;
                     
                     // Create massive particle burst for portal activation
                     let portal_x = WINDOW_WIDTH as f32 / 2.0;
@@ -271,6 +291,11 @@ impl Game {
                     }
                 }
             }
+        }
+
+        if portal_just_activated {
+            // self.balls.clear(); // Don't remove balls, let them orbit
+            self.score += 5000;
         }
 
         // Update Rockets
@@ -405,8 +430,8 @@ impl Game {
             if all_blocks_consumed {
                 self.portal_completion_timer += 1;
                 
-                // Wait 2 seconds (120 frames at 60 FPS) for animation to finish
-                if self.portal_completion_timer >= 120 {
+                // Wait 4.5 seconds (270 frames at 60 FPS) for animation to finish
+                if self.portal_completion_timer >= 270 {
                     self.next_level();
                 }
             }
@@ -423,8 +448,8 @@ impl Game {
         self.particles.retain(|p| p.is_alive());
         self.rockets.retain(|r| r.active);
 
-        // Check if all balls are gone
-        if self.balls.is_empty() {
+        // Check if all balls are gone (only if portal is not active)
+        if self.balls.is_empty() && !self.portal_active {
             self.lives -= 1;
             self.lost_life_this_level = true; // Mark that a life was lost this level
             
@@ -460,8 +485,9 @@ impl Game {
             }
         }
 
-        // Check if all blocks are destroyed
-        if self.blocks.iter().all(|block| !block.active) {
+        // Check if all blocks are destroyed (only if portal is not active)
+        // If portal is active, it handles the transition after animation
+        if !self.portal_active && self.blocks.iter().all(|block| !block.active) {
             self.next_level();
         }
     }

@@ -68,8 +68,6 @@ impl AudioManager {
 
         if songs_found == 0 {
             eprintln!("Warning: No song files found (song1.mp3 - song4.mp3)");
-        } else {
-            eprintln!("Info: Found {} song(s)", songs_found);
         }
 
         // Start at a random song
@@ -129,7 +127,6 @@ impl AudioManager {
                 // Play repeatedly - SDL will loop it indefinitely
                 let _ = music.play(-1);
                 self.music_should_play = true;
-                eprintln!("Now playing: {}", song_path);
                 
                 // Leak the music to keep it alive
                 // This is necessary with SDL2's music system

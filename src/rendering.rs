@@ -1158,7 +1158,7 @@ pub fn render_game(
     
     // Draw portal if active
     if game.portal_active {
-        draw_portal(canvas, game.frame_count);
+        draw_portal(canvas, game.frame_count, game.portal_completion_timer);
     }
 
     // Draw HUD
@@ -1178,36 +1178,166 @@ pub fn render_game(
     canvas.present();
 }
 
-/// Draw swirling portal at center of screen
-fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64) {
+/// Draw swirling portal at center of screen with multi-stage animation
+/// Stages: Opening/Consuming (0-480), Closing (480-540), Flash (540-560), Fade (560-600)
+fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64, completion_timer: u64) {
     let cx = WINDOW_WIDTH as i32 / 2;
     let cy = WINDOW_HEIGHT as i32 / 2;
     
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     
-    // Draw swirling portal rings
-    for i in 0..10 {
-        let radius = 150 - i * 10;
-        let rotation = (frame_count as f32 * 0.1) + (i as f32 * 0.3);
-        
-        // Pulsing alpha
-        let alpha = ((frame_count as f32 * 0.05 + i as f32 * 0.5).sin() * 100.0 + 155.0) as u8;
-        
-        // Purple gradient
-        let color_shift = (i as f32 / 10.0 * 100.0) as u8;
-        
-        // Draw ring segments
-        for j in 0..32 {
-            let angle = (j as f32 / 32.0) * std::f32::consts::PI * 2.0 + rotation;
-            let x = cx + (angle.cos() * radius as f32) as i32;
-            let y = cy + (angle.sin() * radius as f32) as i32;
+    // Animation stages based on completion_timer (Total 270 frames / 4.5 seconds)
+    // Timer == 0: Portal consuming blocks
+    // Timer 1-30: Portal stays open (0.5 seconds)
+    // Timer 31-150: Portal closing (2 seconds)
+    // Timer 151-180: Flash of light (0.5 seconds)
+    // Timer 181-270: Fade out (1.5 seconds)
+    
+    if completion_timer == 0 || (completion_timer > 0 && completion_timer <= 30) {
+        // Stage 1: Normal swirling portal consuming blocks
+        for i in 0..10 {
+            let radius = 150 - i * 10;
+            let rotation = (frame_count as f32 * 0.1) + (i as f32 * 0.3);
             
-            // Draw filled circle using pixel drawing
-            canvas.set_draw_color(SdlColor::RGBA(150 + color_shift, 50, 255 - color_shift, alpha));
-            for dy in -4..=4 {
-                for dx in -4..=4 {
-                    if dx*dx + dy*dy <= 16 {
-                        let _ = canvas.draw_point(Point::new(x + dx, y + dy));
+            // Pulsing alpha
+            let alpha = ((frame_count as f32 * 0.05 + i as f32 * 0.5).sin() * 100.0 + 155.0) as u8;
+            
+            // Purple gradient
+            let color_shift = (i as f32 / 10.0 * 100.0) as u8;
+            
+            // Draw ring segments
+            for j in 0..32 {
+                let angle = (j as f32 / 32.0) * std::f32::consts::PI * 2.0 + rotation;
+                let x = cx + (angle.cos() * radius as f32) as i32;
+                let y = cy + (angle.sin() * radius as f32) as i32;
+                
+                // Draw filled circle using pixel drawing
+                canvas.set_draw_color(SdlColor::RGBA(150 + color_shift, 50, 255 - color_shift, alpha));
+                for dy in -4..=4 {
+                    for dx in -4..=4 {
+                        if dx*dx + dy*dy <= 16 {
+                            let _ = canvas.draw_point(Point::new(x + dx, y + dy));
+                        }
+                    }
+                }
+            }
+        }
+    } else if completion_timer >= 31 && completion_timer <= 150 {
+        // Stage 2: Portal closing - rings shrink inward (2 seconds)
+        let close_progress = (completion_timer - 31) as f32 / 120.0; // 0.0 to 1.0 over 120 frames
+        
+        for i in 0..10 {
+            let base_radius = 150 - i * 10;
+            // Shrink radius to 0
+            let radius = (base_radius as f32 * (1.0 - close_progress)).max(0.0) as i32;
+            
+            if radius <= 0 { continue; }
+
+            let rotation = (frame_count as f32 * 0.15) + (i as f32 * 0.3); // Faster spin
+            
+            // Alpha fades slightly as it closes
+            let base_alpha = ((frame_count as f32 * 0.05 + i as f32 * 0.5).sin() * 100.0 + 155.0) as u8;
+            let alpha = (base_alpha as f32 * (1.0 - close_progress * 0.3)) as u8;
+            
+            // Purple gradient intensifies
+            let color_shift = (i as f32 / 10.0 * 100.0) as u8;
+            let r = (150 + color_shift + (close_progress * 50.0) as u8).min(255);
+            let b = (255 - color_shift).saturating_sub((close_progress * 100.0) as u8);
+            
+            // Draw ring segments
+            for j in 0..32 {
+                let angle = (j as f32 / 32.0) * std::f32::consts::PI * 2.0 + rotation;
+                let x = cx + (angle.cos() * radius as f32) as i32;
+                let y = cy + (angle.sin() * radius as f32) as i32;
+                
+                canvas.set_draw_color(SdlColor::RGBA(r, 50, b, alpha));
+                for dy in -4..=4 {
+                    for dx in -4..=4 {
+                        if dx*dx + dy*dy <= 16 {
+                            let _ = canvas.draw_point(Point::new(x + dx, y + dy));
+                        }
+                    }
+                }
+            }
+        }
+    } else if completion_timer >= 151 && completion_timer <= 180 {
+        // Stage 3: Bright flash of light
+        let flash_progress = (completion_timer - 151) as f32 / 30.0; // 0.0 to 1.0
+        
+        // Bright expanding circle
+        let flash_radius = (50.0 + flash_progress * 200.0) as i32;
+        let flash_alpha = ((1.0 - flash_progress) * 255.0) as u8;
+        
+        // Draw expanding flash
+        for dy in -flash_radius..=flash_radius {
+            for dx in -flash_radius..=flash_radius {
+                let dist_sq = dx*dx + dy*dy;
+                if dist_sq <= flash_radius*flash_radius {
+                    let dist = (dist_sq as f32).sqrt();
+                    let edge_factor = 1.0 - (dist / flash_radius as f32);
+                    let alpha = (flash_alpha as f32 * edge_factor) as u8;
+                    
+                    // Bright white-purple light
+                    canvas.set_draw_color(SdlColor::RGBA(255, 200, 255, alpha));
+                    let _ = canvas.draw_point(Point::new(cx + dx, cy + dy));
+                }
+            }
+        }
+        
+        // Core bright spot
+        let core_radius = 30;
+        for dy in -core_radius..=core_radius {
+            for dx in -core_radius..=core_radius {
+                if dx*dx + dy*dy <= core_radius*core_radius {
+                    canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, flash_alpha));
+                    let _ = canvas.draw_point(Point::new(cx + dx, cy + dy));
+                }
+            }
+        }
+    } else if completion_timer >= 181 && completion_timer < 270 {
+        // Stage 4: Fade out
+        let fade_progress = (completion_timer - 181) as f32 / 89.0; // 0.0 to 1.0
+        let fade_alpha = ((1.0 - fade_progress) * 150.0) as u8;
+        
+        // Gentle purple glow fading
+        let glow_radius = 80;
+        for dy in -glow_radius..=glow_radius {
+            for dx in -glow_radius..=glow_radius {
+                let dist_sq = dx*dx + dy*dy;
+                if dist_sq <= glow_radius*glow_radius {
+                    let dist = (dist_sq as f32).sqrt();
+                    let edge_factor = 1.0 - (dist / glow_radius as f32);
+                    let alpha = (fade_alpha as f32 * edge_factor) as u8;
+                    
+                    canvas.set_draw_color(SdlColor::RGBA(200, 150, 255, alpha));
+                    let _ = canvas.draw_point(Point::new(cx + dx, cy + dy));
+                }
+            }
+        }
+    } else if completion_timer == 0 {
+        // Portal just activated - normal swirling animation
+        for i in 0..10 {
+            let radius = 150 - i * 10;
+            let rotation = (frame_count as f32 * 0.1) + (i as f32 * 0.3);
+            
+            // Pulsing alpha
+            let alpha = ((frame_count as f32 * 0.05 + i as f32 * 0.5).sin() * 100.0 + 155.0) as u8;
+            
+            // Purple gradient
+            let color_shift = (i as f32 / 10.0 * 100.0) as u8;
+            
+            // Draw ring segments
+            for j in 0..32 {
+                let angle = (j as f32 / 32.0) * std::f32::consts::PI * 2.0 + rotation;
+                let x = cx + (angle.cos() * radius as f32) as i32;
+                let y = cy + (angle.sin() * radius as f32) as i32;
+                
+                canvas.set_draw_color(SdlColor::RGBA(150 + color_shift, 50, 255 - color_shift, alpha));
+                for dy in -4..=4 {
+                    for dx in -4..=4 {
+                        if dx*dx + dy*dy <= 16 {
+                            let _ = canvas.draw_point(Point::new(x + dx, y + dy));
+                        }
                     }
                 }
             }
