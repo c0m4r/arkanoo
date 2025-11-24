@@ -261,9 +261,9 @@ impl Game {
                         block.color,
                     ));
 
-                    // Random bonus drop (15% chance) with 5-second cooldown
+                    // Random bonus drop (15% chance) with 1-second cooldown
                     let mut rng = rand::thread_rng();
-                    let cooldown_frames = 300; // 5 seconds at 60 FPS
+                    let cooldown_frames = 60; // 1 seconds at 60 FPS
                     
                     if rng.gen::<f32>() < 0.15 && self.bonus_cooldown >= cooldown_frames {
                         // Weighted bonus distribution:
