@@ -18,6 +18,8 @@ pub struct Game {
     pub bonuses: Vec<Bonus>,
     pub rockets: Vec<Rocket>, // New field for rockets
     pub particles: Vec<Particle>,
+    pub penguin: Option<Penguin>, // Penguin animation for heart theft
+    pub stolen_heart_position: Option<(f32, f32)>, // Position of heart being stolen
     pub score: u32,
     pub lives: u32,
     pub current_level: usize,
@@ -58,6 +60,8 @@ impl Game {
             bonuses: Vec::new(),
             particles: Vec::new(),
             rockets: Vec::new(),
+            penguin: None,
+            stolen_heart_position: None,
             score: 0,
             lives: 3,
             current_level: level,
@@ -99,6 +103,8 @@ impl Game {
         self.bonuses.clear();
         self.particles.clear();
         self.rockets.clear();
+        self.penguin = None;
+        self.stolen_heart_position = None;
         self.state = GameState::Playing;
         self.lost_life_this_level = false; // Reset flag for new level
         self.portal_active = false; // Reset portal for new level
@@ -192,7 +198,7 @@ impl Game {
                         let speed = rng.gen::<f32>() * 2.0 + 1.0; // Slower, drifting particles
                         
                         // Icy colors: Cyan, Light Blue, White
-                        let color = match rng.gen_range(0..3) {
+                        let color = match rng.gen_range(0..12) {
                             0 => Color { r: 0, g: 255, b: 255 },   // Cyan
                             1 => Color { r: 100, g: 200, b: 255 }, // Light Blue
                             _ => Color { r: 200, g: 255, b: 255 }, // White-ish Cyan
@@ -232,33 +238,104 @@ impl Game {
                     }
                 }
             }
-            // Paddle collision
-        if ball.active && check_collision(ball.rect(), self.paddle.rect()) {
-            ball.vel_y = -ball.vel_y.abs();
-            // Add horizontal velocity based on where ball hits paddle
-            let paddle_center = self.paddle.x + self.paddle.width / 2;
-            let ball_center = ball.x as i32 + BALL_SIZE / 2;
-            let offset = ball_center - paddle_center;
-            ball.vel_x += offset as f32 * 0.1;
+        }
+        
+        // Ball-to-ball collisions (only when not in portal mode)
+        if !self.portal_active {
+            // Collect collision data first to avoid borrow issues
+            let mut collisions: Vec<(usize, usize, f32, f32, f32)> = Vec::new();
             
-            // Add spin based on paddle velocity and offset
-            // REFINED: Less sensitive, requires minimum velocity
-            let paddle_vel = self.paddle.vel_x as f32;
-            
-            if paddle_vel.abs() > 2.0 {
-                // Only apply spin if moving fast enough
-                ball.spin = (paddle_vel * 0.3) + (offset as f32 * 0.05);
-                // Trigger visual discharge effect
-                self.paddle.spin_intensity = 1.0;
-            } else {
-                // Minimal spin from just position offset
-                ball.spin = offset as f32 * 0.02;
+            for i in 0..self.balls.len() {
+                for j in (i + 1)..self.balls.len() {
+                    if self.balls[i].active && self.balls[j].active {
+                        let ball1 = &self.balls[i];
+                        let ball2 = &self.balls[j];
+                        
+                        let dx = ball2.x - ball1.x;
+                        let dy = ball2.y - ball1.y;
+                        let distance = (dx * dx + dy * dy).sqrt();
+                        let min_dist = BALL_SIZE as f32;
+                        
+                        if distance < min_dist && distance > 0.1 {
+                            // Calculate collision normal
+                            let nx = dx / distance;
+                            let ny = dy / distance;
+                            
+                            // Calculate relative velocity
+                            let dvx = ball1.vel_x - ball2.vel_x;
+                            let dvy = ball1.vel_y - ball2.vel_y;
+                            
+                            // Dot product of relative velocity and normal
+                            let dot = dvx * nx + dvy * ny;
+                            
+                            // Only resolve if balls are approaching
+                            if dot > 0.0 {
+                                collisions.push((i, j, nx, ny, dot));
+                            }
+                        }
+                    }
+                }
             }
             
-            // Scoring: +5 points for reflecting ball
-            self.score += 5;
-            play_sound(SoundEffect::Bounce);
+            // Apply collision responses
+            for (i, j, nx, ny, dot) in collisions {
+                // Elastic collision response
+                let impulse_x = dot * nx;
+                let impulse_y = dot * ny;
+                
+                // Apply velocity changes
+                self.balls[i].vel_x -= impulse_x;
+                self.balls[i].vel_y -= impulse_y;
+                self.balls[j].vel_x += impulse_x;
+                self.balls[j].vel_y += impulse_y;
+                
+                // Separate balls to prevent sticking
+                let dx = self.balls[j].x - self.balls[i].x;
+                let dy = self.balls[j].y - self.balls[i].y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                let overlap = BALL_SIZE as f32 - distance;
+                let separation = overlap / 2.0 + 0.5;
+                
+                let sep_nx = dx / distance;
+                let sep_ny = dy / distance;
+                
+                self.balls[i].x -= sep_nx * separation;
+                self.balls[i].y -= sep_ny * separation;
+                self.balls[j].x += sep_nx * separation;
+                self.balls[j].y += sep_ny * separation;
+            }
         }
+
+        // Paddle and block collisions (per ball, still inside original ball iteration context)
+        for ball in &mut self.balls {
+            // Paddle collision
+            if ball.active && check_collision(ball.rect(), self.paddle.rect()) {
+                ball.vel_y = -ball.vel_y.abs();
+                // Add horizontal velocity based on where ball hits paddle
+                let paddle_center = self.paddle.x + self.paddle.width / 2;
+                let ball_center = ball.x as i32 + BALL_SIZE / 2;
+                let offset = ball_center - paddle_center;
+                ball.vel_x += offset as f32 * 0.1;
+                
+                // Add spin based on paddle velocity and offset
+                // REFINED: Less sensitive, requires minimum velocity
+                let paddle_vel = self.paddle.vel_x as f32;
+                
+                if paddle_vel.abs() > 2.0 {
+                    // Only apply spin if moving fast enough
+                    ball.spin = (paddle_vel * 0.3) + (offset as f32 * 0.05);
+                    // Trigger visual discharge effect
+                    self.paddle.spin_intensity = 1.0;
+                } else {
+                    // Minimal spin from just position offset
+                    ball.spin = offset as f32 * 0.02;
+                }
+                
+                // Scoring: +5 points for reflecting ball
+                self.score += 5;
+                play_sound(SoundEffect::Bounce);
+            }
+
 
             // Block collision
             for block in &mut self.blocks {
@@ -418,7 +495,6 @@ impl Game {
                     let dx = portal_x - bx;
                     let dy = portal_y - by;
                     let dist = (dx * dx + dy * dy).sqrt();
-                    
                     if dist > 5.0 {
                         // Move block toward portal
                         let speed = 8.0;
@@ -457,6 +533,21 @@ impl Game {
             }
         }
 
+        // Update penguin animation
+        if let Some(ref mut penguin) = self.penguin {
+            penguin.update();
+            
+            // Clear stolen heart when penguin grabs it
+            if penguin.state == PenguinState::Grabbing && self.stolen_heart_position.is_some() {
+                self.stolen_heart_position = None;
+            }
+            
+            // Remove penguin when animation is done
+            if penguin.is_done() {
+                self.penguin = None;
+            }
+        }
+
         // Update particles
         for particle in &mut self.particles {
             particle.update();
@@ -482,17 +573,20 @@ impl Game {
             
             play_sound(SoundEffect::Oh);
             
-            // Heart shatter effect
+            // Penguin animation instead of heart shatter particles
             // Calculate position of the lost heart (it was at index self.lives)
             // Logic: WINDOW_WIDTH - 30 - index * 25
             // Since we just decremented lives, the lost heart index is the current self.lives value
             // e.g. had 3 lives (indices 0,1,2). Lost one -> lives=2. Lost heart was at index 2.
             let heart_x = WINDOW_WIDTH as f32 - 30.0 - (self.lives as f32 * 25.0);
-            let heart_y = 15.0 + 10.0; // Center of the heart (y=15, size=20)
+            let heart_y = 25.0; // Heart center Y position
             
-            // Crimson/Red color for heart
-            let heart_color = Color { r: 220, g: 20, b: 60 };
-            self.create_particles(heart_x, heart_y, heart_color);
+            // Store the stolen heart position so it stays visible
+            self.stolen_heart_position = Some((heart_x, heart_y));
+            
+            // Spawn penguin to steal the heart
+            self.penguin = Some(Penguin::new(heart_x, heart_y));
+
 
             if self.lives == 0 {
                 self.state = GameState::GameOver;

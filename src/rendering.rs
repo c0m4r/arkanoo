@@ -764,10 +764,14 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
             use rand::{Rng, SeedableRng};
             use rand::rngs::StdRng;
             
-            let mut rng = StdRng::seed_from_u64(level as u64);
+            // Use multiple entropy sources for better randomization
+            let seed = (level as u64).wrapping_mul(12345)
+                .wrapping_add((level as u64 / 3).wrapping_mul(67890))
+                .wrapping_add((level as u64 % 7).wrapping_mul(11111));
+            let mut rng = StdRng::seed_from_u64(seed);
             
-            // Randomly select one of the 6 themes (instead of cycling)
-            let theme = rng.gen_range(0..6);
+            // Randomly select one of the 20 themes
+            let theme = rng.gen_range(0..20);
             
             match theme {
                 0 => {
@@ -980,7 +984,7 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                     }
                     canvas.set_blend_mode(sdl2::render::BlendMode::None);
                 },
-                _ => {
+                5 => {
                     // THEME 6: NEBULA CLOUDS (Soft Noise)
                     // Colorful, drifting soft particles
                     
@@ -1019,6 +1023,637 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                             let offset = s / 2;
                             let _ = canvas.fill_rect(Rect::new(x + offset, y + offset, rect_size as u32, rect_size as u32));
                         }
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                6 => {
+                    // THEME 7: RAIN & THUNDER
+                    // Dark stormy background
+                    canvas.set_draw_color(SdlColor::RGB(10, 10, 20));
+                    canvas.clear();
+                    
+                    // Thunder flash
+                    // Random chance for thunder based on time
+                    let thunder_seed = (time * 0.01) as u64; // Change seed slowly
+                    let mut thunder_rng = StdRng::seed_from_u64(thunder_seed + level as u64);
+                    
+                    // Occasional flash (0.5% chance per frame check, but seed changes slower so it lasts a bit)
+                    if thunder_rng.gen_bool(0.02) && (time as u64 % 10 < 3) { 
+                         // Flash white
+                         canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 150));
+                         let _ = canvas.fill_rect(Rect::new(0, 0, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32));
+                         
+                         // Lightning bolt
+                         canvas.set_draw_color(SdlColor::RGB(255, 255, 255));
+                         let start_x = thunder_rng.gen_range(100..WINDOW_WIDTH as i32 - 100);
+                         let mut curr_x = start_x;
+                         let mut curr_y = 0;
+                         while curr_y < WINDOW_HEIGHT as i32 {
+                             let next_x = curr_x + thunder_rng.gen_range(-30..30);
+                             let next_y = curr_y + thunder_rng.gen_range(20..50);
+                             let _ = canvas.draw_line(Point::new(curr_x, curr_y), Point::new(next_x, next_y));
+                             // Branch
+                             if thunder_rng.gen_bool(0.3) {
+                                  let branch_x = next_x + thunder_rng.gen_range(-20..20);
+                                  let branch_y = next_y + thunder_rng.gen_range(20..40);
+                                  let _ = canvas.draw_line(Point::new(next_x, next_y), Point::new(branch_x, branch_y));
+                             }
+                             curr_x = next_x;
+                             curr_y = next_y;
+                         }
+                    }
+                    
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    // Rain
+                    let num_drops = 400;
+                    canvas.set_draw_color(SdlColor::RGBA(150, 150, 200, 150));
+                    
+                    for i in 0..num_drops {
+                        let seed = level as u64 * 2000 + i;
+                        let mut rain_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = rain_rng.gen_range(0..WINDOW_WIDTH as i32 + 200); // Extra width for slant
+                        let speed = rain_rng.gen_range(15.0..25.0);
+                        let len = rain_rng.gen_range(10..20);
+                        
+                        // Animate y
+                        let y_anim = (time * speed + rain_rng.gen_range(0.0..1000.0)) % (WINDOW_HEIGHT as f32 + 50.0);
+                        let y = y_anim as i32 - 20;
+                        
+                        // Slant rain
+                        let x = x_base - (y as f32 * 0.2) as i32;
+                        
+                        if x >= 0 && x < WINDOW_WIDTH as i32 && y >= 0 && y < WINDOW_HEIGHT as i32 {
+                            let _ = canvas.draw_line(Point::new(x, y), Point::new(x - 2, y + len));
+                        }
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                7 => {
+                    // THEME 8: SNOW
+                    // Dark winter sky
+                    canvas.set_draw_color(SdlColor::RGB(5, 10, 20));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let num_flakes = 300;
+                    
+                    for i in 0..num_flakes {
+                        let seed = level as u64 * 3000 + i;
+                        let mut snow_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = snow_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let speed = snow_rng.gen_range(1.0..3.0);
+                        let size = snow_rng.gen_range(1..3);
+                        
+                        // Animate
+                        let y = (time * speed + snow_rng.gen_range(0.0..1000.0)) % (WINDOW_HEIGHT as f32 + 10.0);
+                        
+                        // Horizontal drift
+                        let drift = (time * 0.02 + i as f32).sin() * 20.0;
+                        let x = (x_base as f32 + drift) as i32;
+                        
+                        let alpha = snow_rng.gen_range(100..255);
+                        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
+                        
+                        let _ = canvas.fill_rect(Rect::new(x, y as i32 - 5, size as u32, size as u32));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                8 => {
+                    // THEME 9: STARRY NIGHT (Shooting Stars & Satellite)
+                    canvas.set_draw_color(SdlColor::RGB(0, 0, 10));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    // Static stars (twinkling)
+                    let num_stars = 200;
+                    for i in 0..num_stars {
+                        let seed = level as u64 * 4000 + i;
+                        let mut star_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x = star_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let y = star_rng.gen_range(0..WINDOW_HEIGHT as i32);
+                        let size = if star_rng.gen_bool(0.1) { 2 } else { 1 };
+                        
+                        // Twinkle
+                        let twinkle_speed = star_rng.gen_range(0.05..0.2);
+                        let alpha = ((time * twinkle_speed + i as f32).sin() * 100.0 + 155.0) as u8;
+                        
+                        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, alpha));
+                        let _ = canvas.fill_rect(Rect::new(x, y, size, size));
+                    }
+                    
+                    // Satellite
+                    let sat_speed = 0.5;
+                    let sat_x = (time * sat_speed) % (WINDOW_WIDTH as f32 + 50.0) - 20.0;
+                    let sat_y = 100.0 + (time * 0.01).sin() * 20.0;
+                    
+                    canvas.set_draw_color(SdlColor::RGBA(200, 200, 255, 255));
+                    let _ = canvas.fill_rect(Rect::new(sat_x as i32, sat_y as i32, 3, 3));
+                    // Blinking light on satellite
+                    if (time as u64 / 30) % 2 == 0 {
+                        canvas.set_draw_color(SdlColor::RGBA(255, 0, 0, 255));
+                        let _ = canvas.draw_point(Point::new(sat_x as i32 + 1, sat_y as i32 + 1));
+                    }
+                    
+                    // Shooting stars
+                    // Random occurrence based on time
+                    let shooting_seed = (time * 0.005) as u64; // Change every 200 frames approx
+                    let mut shoot_rng = StdRng::seed_from_u64(shooting_seed + level as u64);
+                    
+                    if shoot_rng.gen_bool(0.3) { // 30% chance per interval
+                        let progress = (time % 200.0) / 200.0; // 0 to 1 loop
+                        if progress < 0.3 { // Only show for first 30% of interval
+                             let start_x = shoot_rng.gen_range(0..WINDOW_WIDTH as i32);
+                             let start_y = shoot_rng.gen_range(0..WINDOW_HEIGHT as i32 / 2);
+                             
+                             let shoot_x = start_x as f32 + progress * 800.0; // Fast
+                             let shoot_y = start_y as f32 + progress * 600.0;
+                             
+                             // Trail
+                             canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 200));
+                             let _ = canvas.draw_line(
+                                 Point::new(shoot_x as i32, shoot_y as i32), 
+                                 Point::new((shoot_x - 40.0) as i32, (shoot_y - 30.0) as i32)
+                             );
+                        }
+                    }
+                    
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                9 => {
+                    // THEME 10: SMOKE
+                    canvas.set_draw_color(SdlColor::RGB(20, 20, 20));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let num_particles = 100;
+                    
+                    for i in 0..num_particles {
+                        let seed = level as u64 * 5000 + i;
+                        let mut smoke_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = smoke_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let speed = smoke_rng.gen_range(0.5..1.5);
+                        
+                        // Rising
+                        let y_anim = (time * speed + smoke_rng.gen_range(0.0..1000.0)) % (WINDOW_HEIGHT as f32 + 100.0);
+                        let y = WINDOW_HEIGHT as f32 - y_anim; // Go up
+                        
+                        // Expand and fade as it goes up
+                        let progress = 1.0 - (y / WINDOW_HEIGHT as f32); // 0 at bottom, 1 at top
+                        let size = (20.0 + progress * 60.0) as u32;
+                        let alpha = ((1.0 - progress) * 100.0) as u8;
+                        
+                        // Drift
+                        let drift = (time * 0.01 + i as f32).sin() * 30.0 * progress;
+                        let x = x_base as f32 + drift;
+                        
+                        canvas.set_draw_color(SdlColor::RGBA(100, 100, 100, alpha));
+                        // Draw soft rect (simulated smoke puff)
+                        let _ = canvas.fill_rect(Rect::new(x as i32 - size as i32 / 2, y as i32 - size as i32 / 2, size, size));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+
+                10 => {
+                    // THEME 11: BUBBLES
+                    // Underwater Blue
+                    canvas.set_draw_color(SdlColor::RGB(0, 20, 40));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let num_bubbles = 150;
+                    for i in 0..num_bubbles {
+                        let seed = level as u64 * 6000 + i;
+                        let mut bubble_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = bubble_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let speed = bubble_rng.gen_range(0.5..2.0);
+                        let size = bubble_rng.gen_range(2..10);
+                        
+                        // Rising
+                        let y_anim = (time * speed + bubble_rng.gen_range(0.0..1000.0)) % (WINDOW_HEIGHT as f32 + 50.0);
+                        let y = WINDOW_HEIGHT as f32 - y_anim;
+                        
+                        // Swaying
+                        let sway = (time * 0.02 + i as f32).sin() * 10.0;
+                        let x = x_base as f32 + sway;
+                        
+                        // Draw bubble outline
+                        canvas.set_draw_color(SdlColor::RGBA(100, 200, 255, 100));
+                        let rect = Rect::new(x as i32, y as i32, size as u32, size as u32);
+                        let _ = canvas.draw_rect(rect);
+                        // Shine
+                        canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 150));
+                        let _ = canvas.draw_point(Point::new(x as i32 + 1, y as i32 + 1));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                11 => {
+                    // THEME 12: FIRE
+                    // Dark Red/Black
+                    canvas.set_draw_color(SdlColor::RGB(20, 5, 0));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let num_flames = 300;
+                    for i in 0..num_flames {
+                        let seed = level as u64 * 7000 + i;
+                        let mut fire_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = fire_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let speed = fire_rng.gen_range(2.0..5.0);
+                        
+                        // Rising fast
+                        let y_anim = (time * speed + fire_rng.gen_range(0.0..1000.0)) % (WINDOW_HEIGHT as f32 / 1.5);
+                        let y = WINDOW_HEIGHT as f32 - y_anim;
+                        
+                        let progress = 1.0 - (y_anim / (WINDOW_HEIGHT as f32 / 1.5)); // 1 at bottom, 0 at top
+                        
+                        // Color gradient: White -> Yellow -> Orange -> Red -> Dark Grey
+                        let (r, g, b, a) = if progress > 0.8 {
+                            (255, 255, 200, 255) // White/Yellow
+                        } else if progress > 0.6 {
+                            (255, 200, 0, 200) // Yellow/Orange
+                        } else if progress > 0.3 {
+                            (255, 50, 0, 150) // Red
+                        } else {
+                            (100, 50, 50, 100) // Smoke
+                        };
+                        
+                        // Wiggle
+                        let wiggle = (time * 0.1 + i as f32).sin() * 5.0;
+                        let x = x_base as f32 + wiggle;
+                        
+                        let size = (progress * 8.0) as u32 + 2;
+                        
+                        canvas.set_draw_color(SdlColor::RGBA(r, g, b, a));
+                        let _ = canvas.fill_rect(Rect::new(x as i32, y as i32, size, size));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                12 => {
+                    // THEME 13: DIGITAL CIRCUIT
+                    // Dark Green/Black
+                    canvas.set_draw_color(SdlColor::RGB(0, 10, 0));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    // Grid nodes
+                    let spacing = 100;
+                    let cols = WINDOW_WIDTH / spacing as u32 + 1;
+                    let rows = WINDOW_HEIGHT / spacing as u32 + 1;
+                    
+                    for r in 0..rows {
+                        for c in 0..cols {
+                            let cx = (c * spacing) as i32;
+                            let cy = (r * spacing) as i32;
+                            
+                            // Pulse
+                            let pulse = ((time * 0.05 + (c + r) as f32).sin() * 100.0 + 100.0) as u8;
+                            
+                            // Draw node
+                            canvas.set_draw_color(SdlColor::RGBA(0, 255, 0, pulse));
+                            let _ = canvas.fill_rect(Rect::new(cx - 2, cy - 2, 5, 5));
+                            
+                            // Draw connections (randomly active)
+                            let seed = level as u64 * 8000 + r as u64 * 100 + c as u64;
+                            let mut circuit_rng = StdRng::seed_from_u64(seed);
+                            
+                            // Horizontal
+                            if circuit_rng.gen_bool(0.7) {
+                                let signal_pos = (time * 2.0) % spacing as f32;
+                                canvas.set_draw_color(SdlColor::RGBA(0, 100, 0, 100));
+                                let _ = canvas.draw_line(Point::new(cx, cy), Point::new(cx + spacing as i32, cy));
+                                
+                                // Moving signal packet
+                                canvas.set_draw_color(SdlColor::RGBA(100, 255, 100, 200));
+                                let sx = cx + signal_pos as i32;
+                                let _ = canvas.fill_rect(Rect::new(sx, cy - 1, 4, 3));
+                            }
+                            
+                            // Vertical
+                            if circuit_rng.gen_bool(0.7) {
+                                let signal_pos = (time * 2.0 + 50.0) % spacing as f32;
+                                canvas.set_draw_color(SdlColor::RGBA(0, 100, 0, 100));
+                                let _ = canvas.draw_line(Point::new(cx, cy), Point::new(cx, cy + spacing as i32));
+                                
+                                // Moving signal packet
+                                canvas.set_draw_color(SdlColor::RGBA(100, 255, 100, 200));
+                                let sy = cy + signal_pos as i32;
+                                let _ = canvas.fill_rect(Rect::new(cx - 1, sy, 3, 4));
+                            }
+                        }
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                13 => {
+                    // THEME 14: KALEIDOSCOPE
+                    canvas.set_draw_color(SdlColor::RGB(10, 0, 10));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let cx = WINDOW_WIDTH as f32 / 2.0;
+                    let cy = WINDOW_HEIGHT as f32 / 2.0;
+                    let num_petals = 12;
+                    let layers = 5;
+                    
+                    for l in 0..layers {
+                        let radius = 100.0 + l as f32 * 80.0;
+                        let rotation = time * (0.01 + l as f32 * 0.005) * if l % 2 == 0 { 1.0 } else { -1.0 };
+                        
+                        let r = (100 + l * 30) as u8;
+                        let g = (50 + l * 20) as u8;
+                        let b = (200 - l * 20) as u8;
+                        
+                        for i in 0..num_petals {
+                            let angle = (i as f32 / num_petals as f32) * std::f32::consts::PI * 2.0 + rotation;
+                            
+                            let x = cx + angle.cos() * radius;
+                            let y = cy + angle.sin() * radius;
+                            
+                            let size = 20 + l * 5;
+                            
+                            canvas.set_draw_color(SdlColor::RGBA(r, g, b, 100));
+                            
+                            // Draw diamond shape
+                            let _ = canvas.draw_line(Point::new(x as i32, (y - size as f32) as i32), Point::new((x + size as f32) as i32, y as i32));
+                            let _ = canvas.draw_line(Point::new((x + size as f32) as i32, y as i32), Point::new(x as i32, (y + size as f32) as i32));
+                            let _ = canvas.draw_line(Point::new(x as i32, (y + size as f32) as i32), Point::new((x - size as f32) as i32, y as i32));
+                            let _ = canvas.draw_line(Point::new((x - size as f32) as i32, y as i32), Point::new(x as i32, (y - size as f32) as i32));
+                        }
+                    }
+                    
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                14 => {
+                    // THEME 15: WARP
+                    // High speed starfield
+                    canvas.set_draw_color(SdlColor::RGB(0, 0, 0));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let cx = WINDOW_WIDTH as f32 / 2.0;
+                    let cy = WINDOW_HEIGHT as f32 / 2.0;
+                    let num_stars = 300;
+                    
+                    for i in 0..num_stars {
+                        let seed = level as u64 * 9000 + i;
+                        let mut warp_rng = StdRng::seed_from_u64(seed);
+                        
+                        let angle = warp_rng.gen_range(0.0..std::f32::consts::PI * 2.0);
+                        let speed = warp_rng.gen_range(2.0..10.0);
+                        
+                        // Move stars outward
+                        let dist_base = (time * speed + warp_rng.gen_range(0.0..1000.0)) % 1000.0;
+                        // Exponential distance for warp effect
+                        let dist = dist_base.powf(1.5) * 0.05;
+                        
+                        let x = cx + angle.cos() * dist;
+                        let y = cy + angle.sin() * dist;
+                        
+                        if x >= 0.0 && x < WINDOW_WIDTH as f32 && y >= 0.0 && y < WINDOW_HEIGHT as f32 {
+                            let size = (dist / 100.0) as u32 + 1;
+                            let alpha = (dist / 2.0).min(255.0) as u8;
+                            
+                            // Color shift based on speed (Redshift/Blueshift)
+                            let (r, g, b) = if speed > 8.0 {
+                                (200, 200, 255) // Blueish
+                            } else {
+                                (255, 200, 200) // Reddish
+                            };
+                            
+                            canvas.set_draw_color(SdlColor::RGBA(r, g, b, alpha));
+                            
+                            // Draw streak
+                            let tail_len = (speed * 2.0) as f32;
+                            let tail_x = x - angle.cos() * tail_len;
+                            let tail_y = y - angle.sin() * tail_len;
+                            
+                            let _ = canvas.draw_line(Point::new(x as i32, y as i32), Point::new(tail_x as i32, tail_y as i32));
+                        }
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                15 => {
+                    // THEME 16: MAZE
+                    // Procedural grid/maze background
+                    canvas.set_draw_color(SdlColor::RGB(10, 10, 20));
+                    canvas.clear();
+                    
+                    let cell_size = 40;
+                    let cols = WINDOW_WIDTH / cell_size + 1;
+                    let rows = WINDOW_HEIGHT / cell_size + 1;
+                    
+                    canvas.set_draw_color(SdlColor::RGB(30, 30, 60));
+                    
+                    for r in 0..rows {
+                        for c in 0..cols {
+                            let seed = level as u64 * 10000 + r as u64 * 100 + c as u64;
+                            let mut maze_rng = StdRng::seed_from_u64(seed);
+                            
+                            let x = (c * cell_size) as i32;
+                            let y = (r * cell_size) as i32;
+                            
+                            if maze_rng.gen_bool(0.5) {
+                                // Diagonal 1
+                                let _ = canvas.draw_line(Point::new(x, y), Point::new(x + cell_size as i32, y + cell_size as i32));
+                            } else {
+                                // Diagonal 2
+                                let _ = canvas.draw_line(Point::new(x + cell_size as i32, y), Point::new(x, y + cell_size as i32));
+                            }
+                        }
+                    }
+                    
+                    // Moving solver
+                    let solver_x = (time * 2.0) % (WINDOW_WIDTH as f32);
+                    let solver_y = (time * 1.5) % (WINDOW_HEIGHT as f32);
+                    canvas.set_draw_color(SdlColor::RGB(0, 255, 0));
+                    let _ = canvas.fill_rect(Rect::new(solver_x as i32 - 3, solver_y as i32 - 3, 6, 6));
+                },
+                16 => {
+                    // THEME 17: SUPERNOVA
+                    // Explosive center
+                    canvas.set_draw_color(SdlColor::RGB(5, 0, 5));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let cx = WINDOW_WIDTH as f32 / 2.0;
+                    let cy = WINDOW_HEIGHT as f32 / 2.0;
+                    
+                    // Core
+                    let pulse = (time * 0.1).sin() * 20.0 + 50.0;
+                    canvas.set_draw_color(SdlColor::RGBA(255, 200, 100, 200));
+                    let _ = canvas.fill_rect(Rect::new(cx as i32 - pulse as i32 / 2, cy as i32 - pulse as i32 / 2, pulse as u32, pulse as u32));
+                    
+                    // Shockwaves
+                    let num_waves = 5;
+                    for i in 0..num_waves {
+                        let wave_dist = (time * 2.0 + i as f32 * 100.0) % 600.0;
+                        let alpha = (255.0 * (1.0 - wave_dist / 600.0)) as u8;
+                        
+                        canvas.set_draw_color(SdlColor::RGBA(255, 100, 50, alpha));
+                        // Draw circle approximation
+                        let points = 32;
+                        for p in 0..points {
+                             let angle = (p as f32 / points as f32) * std::f32::consts::PI * 2.0;
+                             let x = cx + angle.cos() * wave_dist;
+                             let y = cy + angle.sin() * wave_dist;
+                             let _ = canvas.draw_point(Point::new(x as i32, y as i32));
+                        }
+                    }
+                    
+                    // Debris
+                    let num_debris = 100;
+                    for i in 0..num_debris {
+                        let seed = level as u64 * 11000 + i;
+                        let mut debris_rng = StdRng::seed_from_u64(seed);
+                        
+                        let angle = debris_rng.gen_range(0.0..std::f32::consts::PI * 2.0);
+                        let speed = debris_rng.gen_range(1.0..5.0);
+                        let dist = (time * speed + debris_rng.gen_range(0.0..1000.0)) % 800.0;
+                        
+                        let x = cx + angle.cos() * dist;
+                        let y = cy + angle.sin() * dist;
+                        
+                        let r = debris_rng.gen_range(100..255);
+                        let g = debris_rng.gen_range(50..150);
+                        let b = debris_rng.gen_range(50..100);
+                        
+                        canvas.set_draw_color(SdlColor::RGB(r, g, b));
+                        let _ = canvas.fill_rect(Rect::new(x as i32, y as i32, 3, 3));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                17 => {
+                    // THEME 18: SPACE WARS
+                    // Lasers
+                    canvas.set_draw_color(SdlColor::RGB(0, 0, 10));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let num_lasers = 20;
+                    for i in 0..num_lasers {
+                        let seed = level as u64 * 12000 + i;
+                        let mut laser_rng = StdRng::seed_from_u64(seed);
+                        
+                        // Random firing intervals
+                        let interval = laser_rng.gen_range(50..200);
+                        let offset = laser_rng.gen_range(0..200);
+                        
+                        if (time as u64 + offset) % interval < 10 {
+                            // Firing
+                            let y = laser_rng.gen_range(0..WINDOW_HEIGHT as i32);
+                            let color_type = laser_rng.gen_bool(0.5); // Red or Green
+                            
+                            if color_type {
+                                canvas.set_draw_color(SdlColor::RGBA(255, 0, 0, 200)); // Rebel?
+                            } else {
+                                canvas.set_draw_color(SdlColor::RGBA(0, 255, 0, 200)); // Empire?
+                            }
+                            
+                            let speed = 30.0;
+                            let x_start = ((time as u64 + offset) % interval) as f32 * speed;
+                            
+                            let _ = canvas.fill_rect(Rect::new(x_start as i32, y, 100, 4));
+                        }
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                18 => {
+                    // THEME 19: DEEP SEA
+                    // Dark blue, bubbles, organic shapes
+                    canvas.set_draw_color(SdlColor::RGB(0, 5, 20));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    // Light shafts from top
+                    for i in 0..5 {
+                         let x = (i * 200) as i32 + (time * 0.1).sin() as i32 * 50;
+                         let w = 100 + (time * 0.05 + i as f32).cos() as i32 * 20;
+                         
+                         // Gradient fade down
+                         for h in (0..WINDOW_HEIGHT).step_by(20) {
+                             let alpha = (50.0 * (1.0 - h as f32 / WINDOW_HEIGHT as f32)) as u8;
+                             canvas.set_draw_color(SdlColor::RGBA(100, 200, 255, alpha));
+                             let _ = canvas.fill_rect(Rect::new(x, h as i32, w as u32, 20));
+                         }
+                    }
+                    
+                    // Floating plankton
+                    let num_plankton = 200;
+                    for i in 0..num_plankton {
+                        let seed = level as u64 * 13000 + i;
+                        let mut sea_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x_base = sea_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let y_base = sea_rng.gen_range(0..WINDOW_HEIGHT as i32);
+                        
+                        let drift_x = (time * 0.02 + i as f32).sin() * 20.0;
+                        let drift_y = (time * 0.03 + i as f32).cos() * 20.0;
+                        
+                        let x = x_base as f32 + drift_x;
+                        let y = y_base as f32 + drift_y;
+                        
+                        canvas.set_draw_color(SdlColor::RGBA(200, 255, 200, 150));
+                        let _ = canvas.draw_point(Point::new(x as i32, y as i32));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                19 => {
+                    // THEME 20: TORNADO
+                    // Swirling funnel
+                    canvas.set_draw_color(SdlColor::RGB(30, 30, 30));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    let cx = WINDOW_WIDTH as f32 / 2.0;
+                    let num_particles = 300;
+                    
+                    for i in 0..num_particles {
+                        let seed = level as u64 * 14000 + i;
+                        let mut wind_rng = StdRng::seed_from_u64(seed);
+                        
+                        let height_pct = wind_rng.gen_range(0.0..1.0);
+                        let y = height_pct * WINDOW_HEIGHT as f32;
+                        
+                        // Funnel width increases with height
+                        let width = 50.0 + height_pct * 300.0;
+                        
+                        let angle_speed = 0.1 + (1.0 - height_pct) * 0.2; // Faster at bottom
+                        let angle = time * angle_speed + wind_rng.gen_range(0.0..std::f32::consts::PI * 2.0);
+                        
+                        let radius = wind_rng.gen_range(width * 0.8..width);
+                        let x = cx + angle.cos() * radius;
+                        
+                        // Color based on speed/chaos
+                        let gray = wind_rng.gen_range(100..200);
+                        canvas.set_draw_color(SdlColor::RGBA(gray, gray, gray, 150));
+                        
+                        let size = wind_rng.gen_range(2..5);
+                        let _ = canvas.fill_rect(Rect::new(x as i32, y as i32, size, size));
+                    }
+                    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                },
+                _ => {
+                    // Fallback: Simple starfield (shouldn't normally reach here with 0..20 range)
+                    canvas.set_draw_color(SdlColor::RGB(0, 0, 10));
+                    canvas.clear();
+                    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                    
+                    for i in 0..150 {
+                        let seed = level as u64 * 15000 + i;
+                        let mut star_rng = StdRng::seed_from_u64(seed);
+                        
+                        let x = star_rng.gen_range(0..WINDOW_WIDTH as i32);
+                        let y = star_rng.gen_range(0..WINDOW_HEIGHT as i32);
+                        let brightness = star_rng.gen_range(100..255);
+                        
+                        canvas.set_draw_color(SdlColor::RGB(brightness, brightness, brightness));
+                        let _ = canvas.draw_point(Point::new(x, y));
                     }
                     canvas.set_blend_mode(sdl2::render::BlendMode::None);
                 }
@@ -1072,16 +1707,12 @@ pub fn render_game(
         let cannon_y = game.paddle.y - 15;
         
         // Cannon barrel (dark grey)
-        canvas.set_draw_color(SdlColor::RGB(80, 80, 80));
-        let _ = canvas.fill_rect(Rect::new(cannon_x + 3, cannon_y, 4, 10));
+        canvas.set_draw_color(SdlColor::RGB(100, 100, 100));
+        let _ = canvas.fill_rect(Rect::new(cannon_x, cannon_y, 10, 15));
         
-        // Cannon base (darker grey)
-        canvas.set_draw_color(SdlColor::RGB(60, 60, 60));
-        let _ = canvas.fill_rect(Rect::new(cannon_x, cannon_y + 8, 10, 5));
-        
-        // Cannon tip (bright to indicate active)
-        canvas.set_draw_color(SdlColor::RGB(255, 100, 0));
-        let _ = canvas.fill_rect(Rect::new(cannon_x + 3, cannon_y, 4, 2));
+        // Cannon highlight
+        canvas.set_draw_color(SdlColor::RGB(150, 150, 150));
+        let _ = canvas.fill_rect(Rect::new(cannon_x + 2, cannon_y, 2, 15));
         
         // Blinking text: "press space to launch"
         // Blink every 30 frames (about 0.5 seconds at 60 FPS)
@@ -1154,6 +1785,12 @@ pub fn render_game(
     for particle in &game.particles {
         draw_particle(canvas, particle);
     }
+    
+    // Draw penguin animation if active
+    if let Some(ref penguin) = game.penguin {
+        draw_penguin(canvas, penguin);
+    }
+
     canvas.set_blend_mode(sdl2::render::BlendMode::None);
     
     // Draw portal if active
@@ -1363,8 +2000,19 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
         // Use heart texture
         let heart_size = 20;
         for i in 0..game.lives {
-            let x = WINDOW_WIDTH as i32 - 30 - i as i32 * 25;
+            let x = WINDOW_WIDTH as i32 - 40 - i as i32 * 25;
             let y = 15;
+            let _ = canvas.copy(
+                heart_tex,
+                None,
+                Some(Rect::new(x, y, heart_size, heart_size)),
+            );
+        }
+        
+        // Draw stolen heart (if being stolen by penguin)
+        if let Some((heart_x, heart_y)) = game.stolen_heart_position {
+            let x = heart_x as i32 - (heart_size as i32 / 2);
+            let y = heart_y as i32 - (heart_size as i32 / 2);
             let _ = canvas.copy(
                 heart_tex,
                 None,
@@ -1376,7 +2024,13 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
         for i in 0..game.lives {
             draw_heart(canvas, WINDOW_WIDTH as i32 - 40 - i as i32 * 25, 20, 12);
         }
+        
+        // Draw stolen heart (if being stolen by penguin)
+        if let Some((heart_x, heart_y)) = game.stolen_heart_position {
+            draw_heart(canvas, heart_x as i32, heart_y as i32, 12);
+        }
     }
+
     
     // Draw level indicator (CENTER TOP)
     let level_text = if game.current_level <= 9 {
@@ -1464,6 +2118,89 @@ fn draw_particle(canvas: &mut Canvas<Window>, particle: &Particle) {
             }
         }
     }
+}
+
+/// Draw animated penguin with jetpack stealing a heart
+fn draw_penguin(canvas: &mut Canvas<Window>, penguin: &Penguin) {
+    let x = penguin.x as i32;
+    let y = penguin.y as i32;
+    
+    // Gentler hover animation for flying
+    let hover_offset = if matches!(penguin.state, PenguinState::WalkingIn | PenguinState::RunningAway) {
+        ((penguin.frame_count as f32 * 0.15).sin() * 3.0) as i32
+    } else {
+        0
+    };
+    
+    let body_y = y + hover_offset;
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    
+    // Jetpack flames (if flying)
+    if matches!(penguin.state, PenguinState::WalkingIn | PenguinState::RunningAway) {
+        let flame_flicker = (penguin.frame_count % 4) as i32;
+        
+        // Yellow/orange flames
+        canvas.set_draw_color(SdlColor::RGB(255, 200, 0));
+        let _ = canvas.fill_rect(Rect::new(x + 8, body_y + 42, 4, (8 + flame_flicker) as u32));
+        let _ = canvas.fill_rect(Rect::new(x + 13, body_y + 42, 4, (8 + flame_flicker) as u32));
+        
+        // Inner bright flame
+        canvas.set_draw_color(SdlColor::RGB(255, 255, 150));
+        let _ = canvas.fill_rect(Rect::new(x + 9, body_y + 42, 2, (5 + flame_flicker) as u32));
+        let _ = canvas.fill_rect(Rect::new(x + 14, body_y + 42, 2, (5 + flame_flicker) as u32));
+    }
+
+    
+    // Body (black oval)
+    canvas.set_draw_color(SdlColor::RGB(30, 30, 40));
+    let _ = canvas.fill_rect(Rect::new(x, body_y + 8, 25, 30));
+    
+    // Belly (white oval)
+    canvas.set_draw_color(SdlColor::RGB(240, 240, 250));
+    let _ = canvas.fill_rect(Rect::new(x + 6, body_y + 12, 13, 22));
+    
+    // Jetpack (gray rectangles on back)
+    canvas.set_draw_color(SdlColor::RGB(100, 100, 120));
+    let _ = canvas.fill_rect(Rect::new(x + 5, body_y + 20, 5, 15));
+    let _ = canvas.fill_rect(Rect::new(x + 15, body_y + 20, 5, 15));
+    
+    // Head (black circle)
+    canvas.set_draw_color(SdlColor::RGB(30, 30, 40));
+    let _ = canvas.fill_rect(Rect::new(x + 3, body_y, 19, 18));
+    
+    // Eyes (white dots)
+    canvas.set_draw_color(SdlColor::RGB(255, 255, 255));
+    let _ = canvas.fill_rect(Rect::new(x + 8, body_y + 5, 3, 3));
+    let _ = canvas.fill_rect(Rect::new(x + 14, body_y + 5, 3, 3));
+    
+    // Beak (orange triangle)
+    canvas.set_draw_color(SdlColor::RGB(255, 140, 0));
+    let _ = canvas.fill_rect(Rect::new(x + 10, body_y + 10, 5, 3));
+    
+    // Feet (orange - smaller when flying)
+    canvas.set_draw_color(SdlColor::RGB(255, 140, 0));
+    let _ = canvas.fill_rect(Rect::new(x + 7, body_y + 38, 5, 2));
+    let _ = canvas.fill_rect(Rect::new(x + 13, body_y + 38, 5, 2));
+    
+    // Draw heart if grabbing or running away
+    if matches!(penguin.state, PenguinState::Grabbing | PenguinState::RunningAway) {
+        let heart_x = if penguin.state == PenguinState::Grabbing {
+            x + 20 // Heart in grabbing position
+        } else {
+            x + 18 // Heart held while flying
+        };
+        let heart_y = body_y + 15;
+        
+        // Simple heart shape (red)
+        canvas.set_draw_color(SdlColor::RGB(220, 20, 60));
+        let _ = canvas.fill_rect(Rect::new(heart_x, heart_y + 2, 8, 6));
+        let _ = canvas.fill_rect(Rect::new(heart_x + 1, heart_y, 3, 3));
+        let _ = canvas.fill_rect(Rect::new(heart_x + 4, heart_y, 3, 3));
+        let _ = canvas.fill_rect(Rect::new(heart_x + 2, heart_y + 8, 4, 2));
+    }
+    
+    canvas.set_blend_mode(sdl2::render::BlendMode::None);
 }
 
 fn render_button(canvas: &mut Canvas<Window>, button: &Button, font: &Font) {
@@ -1557,22 +2294,11 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             render_button(canvas, &menu.quit_button, font);
         }
         MenuState::Settings => {
-            // Title
-            if let Ok(surface) = font.render("SETTINGS").blended(SdlColor::RGB(255, 255, 255)) {
-                let texture_creator = canvas.texture_creator();
-                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
-                    let target = Rect::new(
-                        WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
-                        WINDOW_HEIGHT as i32 / 2 - 100,
-                        surface.width(),
-                        surface.height(),
-                    );
-                    let _ = canvas.copy(&texture, None, Some(target));
-                };
-            }
-            
-            render_button(canvas, &menu.mute_button, font);
-            render_volume_slider(canvas, &menu.volume_slider, font);
+            // Render settings menu
+            render_button(canvas, &menu.music_toggle_button, font);
+            render_volume_slider(canvas, &menu.music_slider, font);
+            render_button(canvas, &menu.sfx_toggle_button, font);
+            render_volume_slider(canvas, &menu.sfx_slider, font);
             render_button(canvas, &menu.resolution_button, font);
             render_button(canvas, &menu.fullscreen_button, font);
             render_button(canvas, &menu.back_button, font);

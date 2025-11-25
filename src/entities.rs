@@ -341,6 +341,88 @@ impl Particle {
     }
 }
 
+/// Penguin animation states for heart theft
+#[derive(Clone, Copy, PartialEq)]
+pub enum PenguinState {
+    WalkingIn,     // Walking from right edge to heart
+    Grabbing,      // Grabbing animation at heart
+    RunningAway,   // Running back off screen
+    Done,          // Animation complete
+}
+
+/// Penguin that steals hearts when player loses a life
+pub struct Penguin {
+    pub x: f32,
+    pub y: f32,
+    pub target_x: f32,  // Heart position X
+    pub target_y: f32,  // Heart position Y
+    pub state: PenguinState,
+    pub frame_count: u32,
+}
+
+impl Penguin {
+    pub fn new(target_x: f32, target_y: f32) -> Self {
+        Penguin {
+            x: WINDOW_WIDTH as f32 - 50.0, // Start bottom-right
+            y: WINDOW_HEIGHT as f32 - 100.0, // Near bottom
+            target_x,
+            target_y,
+            state: PenguinState::WalkingIn,
+            frame_count: 0,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.frame_count += 1;
+
+        match self.state {
+            PenguinState::WalkingIn => {
+                // Fly diagonally toward heart (FAST jetpack speed!)
+                let dx = self.target_x - self.x;
+                let dy = self.target_y - self.y;
+                let dist = (dx * dx + dy * dy).sqrt();
+                
+                if dist > 5.0 {
+                    // Fly at 5.5 px/frame - fast jetpack!
+                    self.x += (dx / dist) * 5.5;
+                    self.y += (dy / dist) * 5.5;
+                } else {
+                    // Reached heart position
+                    self.x = self.target_x;
+                    self.y = self.target_y;
+                    self.state = PenguinState::Grabbing;
+                    self.frame_count = 0;
+                }
+            }
+            PenguinState::Grabbing => {
+                // Grab animation lasts 30 frames (0.5 seconds)
+                if self.frame_count >= 30 {
+                    self.state = PenguinState::RunningAway;
+                    self.frame_count = 0;
+                }
+            }
+            PenguinState::RunningAway => {
+                // Fly down and right, even faster!
+                self.x += 7.0;
+                self.y += 5.0;
+                
+                // Off screen?
+                if self.x > WINDOW_WIDTH as f32 + 100.0 || self.y > WINDOW_HEIGHT as f32 + 100.0 {
+                    self.state = PenguinState::Done;
+                }
+            }
+            PenguinState::Done => {
+                // Animation complete, do nothing
+            }
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.state == PenguinState::Done
+    }
+}
+
+
 // Block colors (rainbow pattern)
 pub const BLOCK_COLORS: [Color; 6] = [
     Color::new(255, 0, 0),     // Red
@@ -413,13 +495,17 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                 use rand::{Rng, SeedableRng};
                 use rand::rngs::StdRng;
                 
-                // Use level number as seed for consistent random patterns
-                let mut rng = StdRng::seed_from_u64(level as u64);
-                let pattern_type = rng.gen_range(0..6);
+                // Use multiple entropy sources for better randomization
+                let seed = (level as u64).wrapping_mul(54321)
+                    .wrapping_add((level as u64 % 7).wrapping_mul(11111))
+                    .wrapping_add((level as u64 / 5).wrapping_mul(99999));
+                let mut rng = StdRng::seed_from_u64(seed);
+                let pattern_type = rng.gen_range(0..12); // 12 unique patterns (0-11)
                 
                 // Re-seed for this specific block position
                 let block_seed = level as u64 * 1000 + row as u64 * 100 + col as u64;
                 let mut block_rng = StdRng::seed_from_u64(block_seed);
+
                 
                 match pattern_type {
                     0 => {
@@ -453,11 +539,68 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                         let offset = rng.gen_range(0..3);
                         (row + col + offset) % 2 == 0
                     },
-                    _ => {
+                    5 => {
                         // Cellular automata-like
                         let neighbor_sum = (row % 3) + (col % 3);
                         let rule = rng.gen_range(2..6);
                         neighbor_sum == rule || neighbor_sum == rule + 1
+                    },
+                    6 => {
+                        // Honeycomb (staggered grid)
+                        let is_even_row = row % 2 == 0;
+                        if is_even_row {
+                            col % 2 == 0
+                        } else {
+                            col % 2 == 1
+                        }
+                    },
+                    7 => {
+                        // Symmetry (Mirror left to right)
+                        let center_col = BLOCK_COLS / 2;
+                        if col < center_col {
+                            // Random left side
+                            block_rng.gen_bool(0.6)
+                        } else {
+                            // Mirror right side
+                            let mirror_col = BLOCK_COLS - 1 - col;
+                            // Re-seed for mirror position to get same value
+                            let mirror_seed = level as u64 * 1000 + row as u64 * 100 + mirror_col as u64;
+                            let mut mirror_rng = StdRng::seed_from_u64(mirror_seed);
+                            mirror_rng.gen_bool(0.6)
+                        }
+                    },
+                    8 => {
+                        // Maze-like (Bitwise logic)
+                        (col ^ row) % 3 == 0 || (col & row) % 5 == 0
+                    },
+                    9 => {
+                        // Diamonds
+                        let size = 4;
+                        let cx = (col / size) * size + size / 2;
+                        let cy = (row / size) * size + size / 2;
+                        let dist = (col as i32 - cx as i32).abs() + (row as i32 - cy as i32).abs();
+                        dist == size as i32 / 2
+                    },
+                    10 => {
+                        // Invaders (Space Invader shapes)
+                        let shape_x = col % 6;
+                        let shape_y = row % 5;
+                        // Simple invader-like logic
+                        match shape_y {
+                            0 | 4 => shape_x == 2 || shape_x == 3,
+                            1 | 3 => shape_x > 0 && shape_x < 5,
+                            2 => shape_x != 2 && shape_x != 3,
+                            _ => true,
+                        }
+                    },
+                    _ => {
+                        // DNA (Double Helix) - pattern 11 and fallback
+                        let phase = row as f32 * 0.5;
+                        let sine1 = (phase).sin() * 5.0 + 10.0; // Center around col 10
+                        let sine2 = (phase + std::f32::consts::PI).sin() * 5.0 + 10.0;
+                        
+                        let col_f = col as f32;
+                        (col_f - sine1).abs() < 1.5 || (col_f - sine2).abs() < 1.5
                     },
                 }
             };

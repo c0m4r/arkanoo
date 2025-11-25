@@ -82,11 +82,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create game and menu
     let mut game = Game::new();
     let mut menu = Menu::new(WINDOW_WIDTH, WINDOW_HEIGHT);
-    menu.volume_slider.set_value(audio_manager.get_volume());
-    menu.set_muted(audio_manager.is_muted());
+    menu.music_slider.set_value(audio_manager.get_music_volume());
+    menu.sfx_slider.set_value(audio_manager.get_sfx_volume());
+    menu.set_music_muted(audio_manager.is_music_muted());
+    menu.set_sfx_muted(audio_manager.is_sfx_muted());
     menu.set_fullscreen(false);
 
+    // Start playing music
+    audio_manager.play_music();
+
     let mut mouse_down = false;
+
     let mut is_fullscreen = false;
     
     // FPS tracking
@@ -194,7 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         game.start_next_level(); // Starts level 10 (Infinite Mode)
                     } else if game.state == GameState::LevelTransition {
                         game.start_next_level();
-                        audio_manager.play_level_music(game.current_level);
+                        // Music continues playing, no change needed
                     }
                 }
 
@@ -237,11 +243,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         menu.update_hover(adj_x, adj_y);
                         menu.update_slider(adj_x, adj_y, mouse_down);
                         
-                        // Update audio volume from slider
+                        // Update audio volume from sliders
                         if menu.state == MenuState::Settings {
-                            let new_volume = menu.volume_slider.get_value();
-                            if new_volume != audio_manager.get_volume() {
-                                audio_manager.set_volume(new_volume);
+                            let new_music_volume = menu.music_slider.get_value();
+                            if new_music_volume != audio_manager.get_music_volume() {
+                                audio_manager.set_music_volume(new_music_volume);
+                            }
+                            
+                            let new_sfx_volume = menu.sfx_slider.get_value();
+                            if new_sfx_volume != audio_manager.get_sfx_volume() {
+                                audio_manager.set_sfx_volume(new_sfx_volume);
                             }
                         }
                     } else if game.state == GameState::Playing {
@@ -269,7 +280,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::Restart => {
                                 game.reset();
-                                audio_manager.play_level_music(1);
+                                // Music continues playing, no change needed
                                 // Hide cursor when restarting
                                 sdl_context.mouse().show_cursor(false);
                                 let _ = canvas.window_mut().set_grab(true);
@@ -283,9 +294,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             MenuAction::CloseSettings => {
                                 menu.state = MenuState::Main;
                             }
-                            MenuAction::ToggleMute => {
-                                audio_manager.toggle_mute();
-                                menu.set_muted(audio_manager.is_muted());
+                            MenuAction::ToggleMusic => {
+                                audio_manager.toggle_music_mute();
+                                menu.set_music_muted(audio_manager.is_music_muted());
+                            }
+                            MenuAction::ToggleSFX => {
+                                audio_manager.toggle_sfx_mute();
+                                menu.set_sfx_muted(audio_manager.is_sfx_muted());
                             }
                             MenuAction::CycleResolution => {
                                 // Cycle to next resolution
@@ -347,8 +362,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else if game.state == GameState::LevelTransition {
                         // Click to start next level
                         game.start_next_level();
-                        audio_manager.play_level_music(game.current_level);
+                        // Music continues playing
                     }
+
                 }
 
                 Event::MouseButtonUp { mouse_btn: MouseButton::Left, .. } => {

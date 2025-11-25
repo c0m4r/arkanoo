@@ -9,8 +9,10 @@ use rand::Rng;
     breaking_glass_sound: Option<Chunk>,
     songs: Vec<String>,
     current_song_index: usize,
-    volume: i32,
-    muted: bool,
+    music_volume: i32,
+    sfx_volume: i32,
+    music_muted: bool,
+    sfx_muted: bool,
     music_should_play: bool,
 }
 
@@ -30,10 +32,10 @@ impl AudioManager {
             eprintln!("Warning: Could not load ball.mp3, ball_bounce.mp3, or ball_bounce.wav");
         }
 
-        // Load oh.mp3
-        let oh_sound = Chunk::from_file(Path::new("assets/oh.mp3")).ok();
+        // Load drop-sound-effect-240899.mp3
+        let oh_sound = Chunk::from_file(Path::new("assets/drop-sound-effect-240899.mp3")).ok();
         if oh_sound.is_none() {
-            eprintln!("Warning: Could not load assets/oh.mp3");
+            eprintln!("Warning: Could not load assets/drop-sound-effect-240899.mp3");
         }
 
         // Load load.mp3
@@ -48,31 +50,43 @@ impl AudioManager {
             eprintln!("Warning: Could not load assets/breaking-glass.mp3");
         }
 
-        // Setup song playlist
-        let songs = vec![
-            "assets/song1.mp3".to_string(),
-            "assets/song2.mp3".to_string(),
-            "assets/song3.mp3".to_string(),
-            "assets/song4.mp3".to_string(),
-            "assets/song5.mp3".to_string(),
-            "assets/song6.mp3".to_string(),
-        ];
-
-        // Verify songs exist
-        let mut songs_found = 0;
-        for song in &songs {
-            if Path::new(song).exists() {
-                songs_found += 1;
+        // Setup song playlist - dynamically load all .mp3 files from assets directory
+        let mut songs = Vec::new();
+        
+        if let Ok(entries) = std::fs::read_dir("assets/music") {
+            for entry in entries.flatten() {
+                if let Ok(path) = entry.path().canonicalize() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "mp3" {
+                            if let Some(path_str) = path.to_str() {
+                                // Convert to relative path for consistency
+                                if let Ok(rel_path) = path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
+                                    songs.push(rel_path.to_string_lossy().to_string());
+                                } else {
+                                    songs.push(path_str.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+        
+        // Sort songs for consistent ordering
+        songs.sort();
 
-        if songs_found == 0 {
-            eprintln!("Warning: No song files found (song1.mp3 - song4.mp3)");
+        if songs.is_empty() {
+            eprintln!("Warning: No .mp3 music files found in assets directory");
         }
 
-        // Start at a random song
-        let mut rng = rand::thread_rng();
-        let current_song_index = rng.gen_range(0..songs.len());
+        // Start at a random song if we have any
+        let current_song_index = if !songs.is_empty() {
+            let mut rng = rand::thread_rng();
+            rng.gen_range(0..songs.len())
+        } else {
+            0
+        };
+
 
         Ok(AudioManager {
             bounce_sound,
@@ -81,14 +95,16 @@ impl AudioManager {
             breaking_glass_sound,
             songs,
             current_song_index,
-            volume: 32, // Default to 50% volume (max is 128)
-            muted: false,
+            music_volume: 64, // Default to 50% volume (max is 128)
+            sfx_volume: 64,   // Default to 50% volume (max is 128)
+            music_muted: false,
+            sfx_muted: false,
             music_should_play: false,
         })
     }
 
     pub fn play_bounce(&self) {
-        if !self.muted {
+        if !self.sfx_muted {
             if let Some(ref sound) = self.bounce_sound {
                 let _ = Channel::all().play(sound, 0);
             }
@@ -96,7 +112,7 @@ impl AudioManager {
     }
 
     pub fn play_oh(&self) {
-        if !self.muted {
+        if !self.sfx_muted {
             if let Some(ref sound) = self.oh_sound {
                 let _ = Channel::all().play(sound, 0);
             }
@@ -104,7 +120,7 @@ impl AudioManager {
     }
 
     pub fn play_load(&self) {
-        if !self.muted {
+        if !self.sfx_muted {
             if let Some(ref sound) = self.load_sound {
                 let _ = Channel::all().play(sound, 0);
             }
@@ -112,100 +128,121 @@ impl AudioManager {
     }
 
     pub fn play_breaking_glass(&self) {
-        if !self.muted {
+        if !self.sfx_muted {
             if let Some(ref sound) = self.breaking_glass_sound {
                 let _ = Channel::all().play(sound, 0);
             }
         }
     }
 
-    pub fn play_music(&mut self) {
-        if !self.muted && !self.songs.is_empty() {
-            let song_path = &self.songs[self.current_song_index];
-            if let Ok(music) = Music::from_file(Path::new(song_path)) {
-                Music::set_volume(self.volume);
-                // Play repeatedly - SDL will loop it indefinitely
-                let _ = music.play(-1);
-                self.music_should_play = true;
+    pub fn update(&mut self) {
+        if !self.music_muted && self.music_should_play && !self.songs.is_empty() {
+            // Auto-advance to next random song when current finishes
+            if !Music::is_playing() {
+                // Pick a random song
+                let mut rng = rand::thread_rng();
+                self.current_song_index = rng.gen_range(0..self.songs.len());
                 
-                // Leak the music to keep it alive
-                // This is necessary with SDL2's music system
-                std::mem::forget(music);
+                let song_path = &self.songs[self.current_song_index];
+                if let Ok(music) = Music::from_file(song_path) {
+                    Music::set_volume(self.music_volume);
+                    let _ = music.play(-1); // Loop
+                    
+                    // Leak the music to keep it alive
+                    std::mem::forget(music);
+                } else {
+                    eprintln!("Warning: Could not load {}", song_path);
+                }
             }
         }
     }
 
-    pub fn update(&mut self) {
-        // Check if music finished playing and we should play next song
-        // Only do this if we expect music to be playing
-        if self.music_should_play && !self.muted && !Music::is_playing() {
-            // Move to next song
-            self.current_song_index = (self.current_song_index + 1) % self.songs.len();
-            
-            // Small delay to avoid rapid switching
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            
-            // Play next song
-            self.play_music();
+    pub fn play_music(&mut self) {
+        if self.songs.is_empty() || self.music_muted {
+            return;
         }
-    }
-    
-    pub fn play_level_music(&mut self, level: usize) {
-        // For level changes, move to next song in sequence
-        // Level 1 starts random, then each level advances to next song
-        if level == 1 {
-            // Keep the initial random song for level 1
+
+        self.music_should_play = true;
+        
+        // Start playing the current song
+        let song_path = &self.songs[self.current_song_index];
+        if let Ok(music) = Music::from_file(song_path) {
+            Music::set_volume(self.music_volume);
+            let _ = music.play(-1); // -1 = loop indefinitely
+            
+            // Leak the music to keep it alive (SDL2 requirement)
+            std::mem::forget(music);
         } else {
-            // Advance to next song for subsequent levels
-            self.current_song_index = (self.current_song_index + 1) % self.songs.len();
+            eprintln!("Warning: Could not load music file: {}", song_path);
         }
-        
-        // Stop current music
-        Music::halt();
-        
-        // Play new song
-        self.play_music();
     }
 
+    
     pub fn stop_music(&mut self) {
         Music::halt();
         self.music_should_play = false;
     }
 
-    pub fn set_volume(&mut self, volume: i32) {
-        self.volume = volume.clamp(0, 128);
-        Music::set_volume(self.volume);
-        Channel::all().set_volume(self.volume);
+    // Music volume and mute controls
+    pub fn set_music_volume(&mut self, volume: i32) {
+        self.music_volume = volume.clamp(0, 128);
+        Music::set_volume(self.music_volume);
     }
 
-    pub fn get_volume(&self) -> i32 {
-        self.volume
+    pub fn get_music_volume(&self) -> i32 {
+        self.music_volume
     }
 
-    pub fn set_muted(&mut self, muted: bool) {
-        let was_muted = self.muted;
-        self.muted = muted;
+    pub fn set_music_muted(&mut self, muted: bool) {
+        let was_muted = self.music_muted;
+        self.music_muted = muted;
         
         if muted {
             Music::set_volume(0);
-            Channel::all().set_volume(0);
             if Music::is_playing() {
                 Music::pause();
             }
         } else {
-            Music::set_volume(self.volume);
-            Channel::all().set_volume(self.volume);
+            Music::set_volume(self.music_volume);
             if was_muted {
                 Music::resume();
             }
         }
     }
 
-    pub fn is_muted(&self) -> bool {
-        self.muted
+    pub fn is_music_muted(&self) -> bool {
+        self.music_muted
     }
 
-    pub fn toggle_mute(&mut self) {
-        self.set_muted(!self.muted);
+    pub fn toggle_music_mute(&mut self) {
+        self.set_music_muted(!self.music_muted);
+    }
+
+    // SFX volume and mute controls
+    pub fn set_sfx_volume(&mut self, volume: i32) {
+        self.sfx_volume = volume.clamp(0, 128);
+        Channel::all().set_volume(self.sfx_volume);
+    }
+
+    pub fn get_sfx_volume(&self) -> i32 {
+        self.sfx_volume
+    }
+
+    pub fn set_sfx_muted(&mut self, muted: bool) {
+        self.sfx_muted = muted;
+        
+        if muted {
+            Channel::all().set_volume(0);
+        } else {
+            Channel::all().set_volume(self.sfx_volume);
+        }
+    }
+
+    pub fn is_sfx_muted(&self) -> bool {
+        self.sfx_muted
+    }
+
+    pub fn toggle_sfx_mute(&mut self) {
+        self.set_sfx_muted(!self.sfx_muted);
     }
 }

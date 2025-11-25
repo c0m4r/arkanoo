@@ -77,13 +77,16 @@ pub struct Menu {
     pub settings_button: Button,
     pub back_button: Button,
     pub quit_button: Button,
-    pub mute_button: Button,
+    pub music_toggle_button: Button,
+    pub sfx_toggle_button: Button,
     pub resolution_button: Button,
     pub fullscreen_button: Button,
-    pub volume_slider: VolumeSlider,
+    pub music_slider: VolumeSlider,
+    pub sfx_slider: VolumeSlider,
     pub confirm_button: Button,
     pub cancel_button: Button,
-    pub muted: bool,
+    pub music_muted: bool,
+    pub sfx_muted: bool,
     pub is_fullscreen: bool,
     pub resolutions: Vec<(u32, u32)>,
     pub current_resolution_idx: usize,
@@ -102,14 +105,17 @@ impl Menu {
             restart_button: Button::new(center_x, center_y - 30, 200, 40, "Restart"),
             settings_button: Button::new(center_x, center_y + 20, 200, 40, "Settings"),
             quit_button: Button::new(center_x, center_y + 70, 200, 40, "Quit"),
-            back_button: Button::new(center_x, center_y + 120, 200, 40, "Back"),
-            mute_button: Button::new(center_x, center_y - 80, 200, 40, "Sound: ON"),
-            resolution_button: Button::new(center_x, center_y - 30, 200, 40, "1280x720"),
-            fullscreen_button: Button::new(center_x, center_y + 70, 200, 40, "Windowed"),
-            volume_slider: VolumeSlider::new(center_x, center_y + 20, 200),
+            back_button: Button::new(center_x, center_y + 170, 200, 40, "Back"),
+            music_toggle_button: Button::new(center_x, center_y - 120, 200, 40, "Music: ON"),
+            sfx_toggle_button: Button::new(center_x, center_y - 20, 200, 40, "SFX: ON"),
+            resolution_button: Button::new(center_x, center_y + 80, 200, 40, "1280x720"),
+            fullscreen_button: Button::new(center_x, center_y + 130, 200, 40, "Windowed"),
+            music_slider: VolumeSlider::new(center_x, center_y - 70, 200),
+            sfx_slider: VolumeSlider::new(center_x, center_y + 30, 200),
             confirm_button: Button::new(center_x - 110, center_y + 20, 100, 40, "Keep"),
             cancel_button: Button::new(center_x + 10, center_y + 20, 100, 40, "Revert"),
-            muted: false,
+            music_muted: false,
+            sfx_muted: false,
             is_fullscreen: false,
             resolutions: vec![
                 (1280, 720),
@@ -131,7 +137,8 @@ impl Menu {
                 self.quit_button.update_hover(mouse_x, mouse_y);
             }
             MenuState::Settings => {
-                self.mute_button.update_hover(mouse_x, mouse_y);
+                self.music_toggle_button.update_hover(mouse_x, mouse_y);
+                self.sfx_toggle_button.update_hover(mouse_x, mouse_y);
                 self.resolution_button.update_hover(mouse_x, mouse_y);
                 self.fullscreen_button.update_hover(mouse_x, mouse_y);
                 self.back_button.update_hover(mouse_x, mouse_y);
@@ -145,7 +152,8 @@ impl Menu {
 
     pub fn update_slider(&mut self, mouse_x: i32, mouse_y: i32, mouse_down: bool) {
         if self.state == MenuState::Settings {
-            self.volume_slider.update(mouse_x, mouse_y, mouse_down);
+            self.music_slider.update(mouse_x, mouse_y, mouse_down);
+            self.sfx_slider.update(mouse_x, mouse_y, mouse_down);
         }
     }
 
@@ -159,12 +167,21 @@ impl Menu {
         false
     }
 
-    pub fn set_muted(&mut self, muted: bool) {
-        self.muted = muted;
-        self.mute_button.label = if muted {
-            "Sound: OFF".to_string()
+    pub fn set_music_muted(&mut self, muted: bool) {
+        self.music_muted = muted;
+        self.music_toggle_button.label = if muted {
+            "Music: OFF".to_string()
         } else {
-            "Sound: ON".to_string()
+            "Music: ON".to_string()
+        };
+    }
+    
+    pub fn set_sfx_muted(&mut self, muted: bool) {
+        self.sfx_muted = muted;
+        self.sfx_toggle_button.label = if muted {
+            "SFX: OFF".to_string()
+        } else {
+            "SFX: ON".to_string()
         };
     }
     
@@ -185,7 +202,8 @@ pub enum MenuAction {
     Quit,
     OpenSettings,
     CloseSettings,
-    ToggleMute,
+    ToggleMusic,
+    ToggleSFX,
     CycleResolution,
     ToggleFullscreen,
     ConfirmResolution,
@@ -209,8 +227,11 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             }
         }
         MenuState::Settings => {
-            if menu.mute_button.is_clicked(mouse_x, mouse_y) {
-                return MenuAction::ToggleMute;
+            if menu.music_toggle_button.is_clicked(mouse_x, mouse_y) {
+                return MenuAction::ToggleMusic;
+            }
+            if menu.sfx_toggle_button.is_clicked(mouse_x, mouse_y) {
+                return MenuAction::ToggleSFX;
             }
             if menu.resolution_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::CycleResolution;
