@@ -7,6 +7,9 @@ edition = "2021"
 sdl2 = { version = "0.37", features = ["mixer", "ttf", "image"] }
 rand = "0.8"
 
+[build-dependencies]
+winres = "0.1"
+
 [profile.release]
 opt-level = 3
 lto = true
