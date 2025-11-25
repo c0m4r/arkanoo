@@ -1668,10 +1668,37 @@ pub fn render_game(
     menu: &Menu,
     background: Option<&mut Texture>,
     heart_texture: Option<&Texture>,
+    splash_texture: Option<&Texture>,
     font: &Font,
     fps: f32,
     cache: &mut TextureCache,
 ) {
+    // Handle splash screen state
+    if game.state == GameState::SplashScreen {
+        canvas.set_draw_color(SdlColor::RGB(0, 0, 0));
+        canvas.clear();
+        
+        if let Some(splash) = splash_texture {
+            // Get window size
+            let (window_width, window_height) = canvas.output_size().unwrap_or((WINDOW_WIDTH, WINDOW_HEIGHT));
+            
+            // Get splash texture size
+            let query = splash.query();
+            let splash_width = query.width;
+            let splash_height = query.height;
+            
+            // Center the splash image
+            let x = (window_width as i32 - splash_width as i32) / 2;
+            let y = (window_height as i32 - splash_height as i32) / 2;
+            
+            let target_rect = Rect::new(x, y, splash_width, splash_height);
+            let _ = canvas.copy(splash, None, Some(target_rect));
+        }
+        
+        canvas.present();
+        return;
+    }
+
     // Draw background
     if game.current_level > 6 {
         // Animated backgrounds for levels 7-9

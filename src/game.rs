@@ -3,6 +3,7 @@ use rand::Rng;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum GameState {
+    SplashScreen,
     Playing,
     Paused,
     GameOver,
@@ -54,7 +55,7 @@ impl Game {
         );
         
         Game {
-            state: GameState::Playing,
+            state: GameState::SplashScreen,
             paddle,
             balls: vec![initial_ball],
             blocks: create_blocks(level),
@@ -657,6 +658,7 @@ impl Game {
             GameState::GameOver => GameState::GameOver,
             GameState::Victory => GameState::Victory,
             GameState::LevelTransition => GameState::LevelTransition,
+            GameState::SplashScreen => GameState::SplashScreen,
         };
     }
 }

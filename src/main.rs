@@ -74,6 +74,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .load_texture("assets/heart.png")
         .ok();
 
+    // Load splash screen texture
+    let splash_texture = texture_creator
+        .load_texture("assets/antigravity.webp")
+        .ok();
+    let mut splash_timer: u64 = 0; // Timer for splash screen (in frames)
+
     // Initialize audio
     let mut audio_manager = AudioManager::new().unwrap_or_else(|e| {
         eprintln!("Warning: Failed to initialize audio: {}", e);
@@ -181,7 +187,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 
                 Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
-                    if game.state == GameState::Victory {
+                    if game.state == GameState::SplashScreen {
+                        // Skip splash screen, show menu
+                        game.state = GameState::Paused;
+                        menu.state = MenuState::Main;
+                        sdl_context.mouse().show_cursor(true);
+                        let _ = canvas.window_mut().set_grab(false);
+                    } else if game.state == GameState::Victory {
                         game.start_next_level(); // Starts level 10 (Infinite Mode)
                     } else if game.state == GameState::LevelTransition {
                         game.start_next_level();
@@ -263,7 +275,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let adj_x = (x as f32 / scale_x) as i32;
                     let adj_y = (y as f32 / scale_y) as i32;
 
-                    if game.state == GameState::Paused {
+                    if game.state == GameState::SplashScreen {
+                        // Skip splash screen, show menu
+                        game.state = GameState::Paused;
+                        menu.state = MenuState::Main;
+                        sdl_context.mouse().show_cursor(true);
+                        let _ = canvas.window_mut().set_grab(false);
+                    } else if game.state == GameState::Paused {
                         let action = handle_menu_click(&menu, adj_x, adj_y);
                         match action {
                             MenuAction::Resume => {
@@ -337,6 +355,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // Update splash screen timer
+        if game.state == GameState::SplashScreen {
+            splash_timer += 1;
+            // Auto-advance to menu after 3 seconds (180 frames at 60 FPS)
+            if splash_timer >= 180 {
+                game.state = GameState::Paused;
+                menu.state = MenuState::Main;
+                sdl_context.mouse().show_cursor(true);
+                let _ = canvas.window_mut().set_grab(false);
+            }
+        }
+
         // Update game
         let mut sound_to_play = None;
         game.update(&mut |effect| sound_to_play = Some(effect));
@@ -360,7 +390,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         current_fps = frame_times.len() as f32;
 
         // Render
-        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), &font, current_fps, &mut texture_cache);
+        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_ref(), &font, current_fps, &mut texture_cache);
 
         // Target 60 FPS
         let elapsed = frame_start.elapsed();
