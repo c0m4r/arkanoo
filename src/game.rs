@@ -243,7 +243,7 @@ impl Game {
         // Ball-to-ball collisions (only when not in portal mode)
         if !self.portal_active {
             // Collect collision data first to avoid borrow issues
-            let mut collisions: Vec<(usize, usize, f32, f32, f32)> = Vec::new();
+            let mut collisions: Vec<(usize, usize, f32, f32)> = Vec::new(); // i, j, collision_x, collision_y
             
             for i in 0..self.balls.len() {
                 for j in (i + 1)..self.balls.len() {
@@ -256,53 +256,48 @@ impl Game {
                         let distance = (dx * dx + dy * dy).sqrt();
                         let min_dist = BALL_SIZE as f32;
                         
-                        if distance < min_dist && distance > 0.1 {
-                            // Calculate collision normal
-                            let nx = dx / distance;
-                            let ny = dy / distance;
-                            
-                            // Calculate relative velocity
-                            let dvx = ball1.vel_x - ball2.vel_x;
-                            let dvy = ball1.vel_y - ball2.vel_y;
-                            
-                            // Dot product of relative velocity and normal
-                            let dot = dvx * nx + dvy * ny;
-                            
-                            // Only resolve if balls are approaching
-                            if dot > 0.0 {
-                                collisions.push((i, j, nx, ny, dot));
-                            }
+                        if distance < min_dist {
+                            // Collision detected!
+                            let collision_x = ball1.x + dx / 2.0;
+                            let collision_y = ball1.y + dy / 2.0;
+                            collisions.push((i, j, collision_x, collision_y));
                         }
                     }
                 }
             }
             
             // Apply collision responses
-            for (i, j, nx, ny, dot) in collisions {
-                // Elastic collision response
-                let impulse_x = dot * nx;
-                let impulse_y = dot * ny;
+            for (i, j, col_x, col_y) in collisions {
+                // 1. Eject Upwards & Separate Horizontally
+                {
+                    let ball1 = &mut self.balls[i];
+                    ball1.vel_y = -ball1.vel_y.abs().max(8.0); // Force UP, min speed 8.0
+                    // Push left if it was on the left, or just random/away
+                    ball1.vel_x = if ball1.x < col_x { -5.0 } else { 5.0 };
+                }
+                {
+                    let ball2 = &mut self.balls[j];
+                    ball2.vel_y = -ball2.vel_y.abs().max(8.0); // Force UP, min speed 8.0
+                    ball2.vel_x = if ball2.x < col_x { -5.0 } else { 5.0 };
+                }
+
+                // 2. Sonic Boom Effect (Expanding Ring)
+                // Spawn 36 particles in a circle expanding outward
+                for k in 0..36 {
+                    let angle = (k as f32 * 10.0).to_radians();
+                    let speed = 6.0; // Fast expansion
+                    
+                    self.particles.push(Particle::new(
+                        col_x + BALL_SIZE as f32 / 2.0, 
+                        col_y + BALL_SIZE as f32 / 2.0,
+                        angle.cos() * speed,
+                        angle.sin() * speed,
+                        Color { r: 200, g: 255, b: 255 }, // Cyan/White shockwave
+                    ));
+                }
                 
-                // Apply velocity changes
-                self.balls[i].vel_x -= impulse_x;
-                self.balls[i].vel_y -= impulse_y;
-                self.balls[j].vel_x += impulse_x;
-                self.balls[j].vel_y += impulse_y;
-                
-                // Separate balls to prevent sticking
-                let dx = self.balls[j].x - self.balls[i].x;
-                let dy = self.balls[j].y - self.balls[i].y;
-                let distance = (dx * dx + dy * dy).sqrt();
-                let overlap = BALL_SIZE as f32 - distance;
-                let separation = overlap / 2.0 + 0.5;
-                
-                let sep_nx = dx / distance;
-                let sep_ny = dy / distance;
-                
-                self.balls[i].x -= sep_nx * separation;
-                self.balls[i].y -= sep_ny * separation;
-                self.balls[j].x += sep_nx * separation;
-                self.balls[j].y += sep_ny * separation;
+                // Play collision sound
+                play_sound(SoundEffect::Bounce);
             }
         }
 
