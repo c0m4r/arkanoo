@@ -131,10 +131,21 @@ pub struct Ball {
 
 impl Ball {
     pub fn new(x: f32, y: f32) -> Self {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        // Randomly choose initial direction: 0 = left-up, 1 = straight up, 2 = right-up
+        let direction = rng.gen_range(0..3);
+        let vel_x = match direction {
+            0 => -4.0,  // Left-up
+            1 => 0.0,   // Straight up
+            _ => 4.0,   // Right-up
+        };
+        
         Ball {
             x,
             y,
-            vel_x: 4.0,
+            vel_x,
             vel_y: -4.0,
             active: true,
             spin: 0.0,
@@ -434,184 +445,204 @@ pub const BLOCK_COLORS: [Color; 6] = [
 ];
 
 pub fn create_blocks(level: usize) -> Vec<Block> {
-    let mut blocks = Vec::new();
-    let total_blocks_width = BLOCK_COLS as i32 * BLOCK_WIDTH;
-    let offset_x = (WINDOW_WIDTH as i32 - total_blocks_width) / 2;
+    // For infinite mode (level 10+), ensure we have a minimum number of blocks
+    // by retrying with different seeds if needed
+    const MIN_BLOCKS: usize = 20;
+    const MAX_RETRIES: u32 = 10;
+    
+    let mut attempt = 0;
+    loop {
+        let mut blocks = Vec::new();
+        let total_blocks_width = BLOCK_COLS as i32 * BLOCK_WIDTH;
+        let offset_x = (WINDOW_WIDTH as i32 - total_blocks_width) / 2;
 
-    for row in 0..BLOCK_ROWS {
-        for col in 0..BLOCK_COLS {
-            let x = offset_x + col as i32 * BLOCK_WIDTH;
-            let y = BLOCK_OFFSET_Y + row as i32 * BLOCK_HEIGHT;
-            let color = BLOCK_COLORS[row % BLOCK_COLORS.len()];
-            
-            let should_add = if level <= 9 {
-                // Predefined patterns for levels 1-9
-                match level {
-                    1 => true, // Level 1: Full grid
-                    2 => (row + col) % 2 == 0, // Level 2: Checkerboard
-                    3 => row % 2 == 0, // Level 3: Horizontal Stripes
-                    4 => col % 2 == 0 || col % 2 == 1 && row == 0 || row == BLOCK_ROWS - 1,
-                    5 => {
-                        let center_col = BLOCK_COLS as i32 / 2;
-                        let dist = (col as i32 - center_col).abs();
-                        dist <= row as i32
-                    },
-                    6 => {
-                        let center_col = BLOCK_COLS as i32 / 2;
-                        let center_row = BLOCK_ROWS as i32 / 2;
-                        let dist_x = (col as i32 - center_col).abs();
-                        let dist_y = (row as i32 - center_row).abs();
-                        dist_x + dist_y <= center_row + 2
-                    },
-                    7 => {
-                        let center_col = BLOCK_COLS as f32 / 2.0;
-                        let center_row = BLOCK_ROWS as f32 / 2.0;
-                        let dx = col as f32 - center_col;
-                        let dy = row as f32 - center_row;
-                        let angle = dy.atan2(dx);
-                        let dist = (dx * dx + dy * dy).sqrt();
-                        let spiral = (angle * 2.0 + dist * 0.5).sin();
-                        spiral > 0.0
-                    },
-                    8 => {
-                        let center_col = BLOCK_COLS as f32 / 2.0;
-                        let center_row = BLOCK_ROWS as f32 / 2.0;
-                        let dx = col as f32 - center_col;
-                        let dy = row as f32 - center_row;
-                        let dist = (dx * dx + dy * dy).sqrt();
-                        (dist as i32) % 3 != 1
-                    },
-                    9 => {
-                        let pattern_x = col % 4;
-                        let pattern_y = row % 4;
-                        !(pattern_x == 1 && pattern_y == 1) && 
-                        !(pattern_x == 2 && pattern_y == 2) &&
-                        !((col + row) % 7 == 0)
-                    },
-                    _ => true,
+        for row in 0..BLOCK_ROWS {
+            for col in 0..BLOCK_COLS {
+                let x = offset_x + col as i32 * BLOCK_WIDTH;
+                let y = BLOCK_OFFSET_Y + row as i32 * BLOCK_HEIGHT;
+                let color = BLOCK_COLORS[row % BLOCK_COLORS.len()];
+                
+                let should_add = if level <= 9 {
+                    // Predefined patterns for levels 1-9
+                    match level {
+                        1 => true, // Level 1: Full grid
+                        2 => (row + col) % 2 == 0, // Level 2: Checkerboard
+                        3 => row % 2 == 0, // Level 3: Horizontal Stripes
+                        4 => col % 2 == 0 || col % 2 == 1 && row == 0 || row == BLOCK_ROWS - 1,
+                        5 => {
+                            let center_col = BLOCK_COLS as i32 / 2;
+                            let dist = (col as i32 - center_col).abs();
+                            dist <= row as i32
+                        },
+                        6 => {
+                            let center_col = BLOCK_COLS as i32 / 2;
+                            let center_row = BLOCK_ROWS as i32 / 2;
+                            let dist_x = (col as i32 - center_col).abs();
+                            let dist_y = (row as i32 - center_row).abs();
+                            dist_x + dist_y <= center_row + 2
+                        },
+                        7 => {
+                            let center_col = BLOCK_COLS as f32 / 2.0;
+                            let center_row = BLOCK_ROWS as f32 / 2.0;
+                            let dx = col as f32 - center_col;
+                            let dy = row as f32 - center_row;
+                            let angle = dy.atan2(dx);
+                            let dist = (dx * dx + dy * dy).sqrt();
+                            let spiral = (angle * 2.0 + dist * 0.5).sin();
+                            spiral > 0.0
+                        },
+                        8 => {
+                            let center_col = BLOCK_COLS as f32 / 2.0;
+                            let center_row = BLOCK_ROWS as f32 / 2.0;
+                            let dx = col as f32 - center_col;
+                            let dy = row as f32 - center_row;
+                            let dist = (dx * dx + dy * dy).sqrt();
+                            (dist as i32) % 3 != 1
+                        },
+                        9 => {
+                            let pattern_x = col % 4;
+                            let pattern_y = row % 4;
+                            !(pattern_x == 1 && pattern_y == 1) && 
+                            !(pattern_x == 2 && pattern_y == 2) &&
+                            !((col + row) % 7 == 0)
+                        },
+                        _ => true,
+                    }
+                } else {
+                    // Random patterns for levels 10+ (seeded by level number)
+                    use rand::{Rng, SeedableRng};
+                    use rand::rngs::StdRng;
+                    
+                    // Use multiple entropy sources for better randomization
+                    // Add attempt number to seed for retries
+                    let seed = (level as u64).wrapping_mul(54321)
+                        .wrapping_add((level as u64 % 7).wrapping_mul(11111))
+                        .wrapping_add((level as u64 / 5).wrapping_mul(99999))
+                        .wrapping_add((attempt as u64).wrapping_mul(77777));
+                    let mut rng = StdRng::seed_from_u64(seed);
+                    let pattern_type = rng.gen_range(0..12); // 12 unique patterns (0-11)
+                    
+                    // Re-seed for this specific block position
+                    let block_seed = level as u64 * 1000 + row as u64 * 100 + col as u64 + attempt as u64;
+                    let mut block_rng = StdRng::seed_from_u64(block_seed);
+
+                    
+                    match pattern_type {
+                        0 => {
+                            // Random scatter (60-80% density)
+                            let density = rng.gen_range(0.6..0.8);
+                            block_rng.gen::<f32>() < density
+                        },
+                        1 => {
+                            // Wave pattern
+                            let wave = (col as f32 * 0.5 + row as f32 * 0.3).sin();
+                            let threshold = rng.gen_range(-0.3..0.3);
+                            wave > threshold
+                        },
+                        2 => {
+                            // Diagonal stripes
+                            let stripe_width = rng.gen_range(2..5);
+                            ((row + col) / stripe_width) % 2 == 0
+                        },
+                        3 => {
+                            // Random rings from center
+                            let center_col = BLOCK_COLS as f32 / 2.0;
+                            let center_row = BLOCK_ROWS as f32 / 2.0;
+                            let dx = col as f32 - center_col;
+                            let dy = row as f32 - center_row;
+                            let dist = (dx * dx + dy * dy).sqrt();
+                            let ring_size = rng.gen_range(1.5..3.0);
+                            (dist / ring_size) as i32 % 2 == 0
+                        },
+                        4 => {
+                            // Checkerboard with random offset
+                            let offset = rng.gen_range(0..3);
+                            (row + col + offset) % 2 == 0
+                        },
+                        5 => {
+                            // Cellular automata-like
+                            let neighbor_sum = (row % 3) + (col % 3);
+                            let rule = rng.gen_range(2..6);
+                            neighbor_sum == rule || neighbor_sum == rule + 1
+                        },
+                        6 => {
+                            // Honeycomb (staggered grid)
+                            let is_even_row = row % 2 == 0;
+                            if is_even_row {
+                                col % 2 == 0
+                            } else {
+                                col % 2 == 1
+                            }
+                        },
+                        7 => {
+                            // Symmetry (Mirror left to right)
+                            let center_col = BLOCK_COLS / 2;
+                            if col < center_col {
+                                // Random left side
+                                block_rng.gen_bool(0.6)
+                            } else {
+                                // Mirror right side
+                                let mirror_col = BLOCK_COLS - 1 - col;
+                                // Re-seed for mirror position to get same value
+                                let mirror_seed = level as u64 * 1000 + row as u64 * 100 + mirror_col as u64 + attempt as u64;
+                                let mut mirror_rng = StdRng::seed_from_u64(mirror_seed);
+                                mirror_rng.gen_bool(0.6)
+                            }
+                        },
+                        8 => {
+                            // Maze-like (Bitwise logic)
+                            (col ^ row) % 3 == 0 || (col & row) % 5 == 0
+                        },
+                        9 => {
+                            // Diamonds (filled instead of just outlines)
+                            let size = 4;
+                            let cx = (col / size) * size + size / 2;
+                            let cy = (row / size) * size + size / 2;
+                            let dist = (col as i32 - cx as i32).abs() + (row as i32 - cy as i32).abs();
+                            // Create filled diamonds instead of just outlines
+                            dist <= size as i32 / 2
+                        },
+                        10 => {
+                            // Invaders (Space Invader shapes)
+                            let shape_x = col % 6;
+                            let shape_y = row % 5;
+                            // Simple invader-like logic
+                            match shape_y {
+                                0 | 4 => shape_x == 2 || shape_x == 3,
+                                1 | 3 => shape_x > 0 && shape_x < 5,
+                                2 => shape_x != 2 && shape_x != 3,
+                                _ => true,
+                            }
+                        },
+                        _ => {
+                            // DNA (Double Helix) - pattern 11 and fallback
+                            // Wider helix to ensure more blocks
+                            let phase = row as f32 * 0.5;
+                            let sine1 = (phase).sin() * 5.0 + 10.0; // Center around col 10
+                            let sine2 = (phase + std::f32::consts::PI).sin() * 5.0 + 10.0;
+                            
+                            let col_f = col as f32;
+                            // Increased radius from 1.5 to 2.5 for more blocks
+                            (col_f - sine1).abs() < 2.5 || (col_f - sine2).abs() < 2.5
+                        },
+                    }
+                };
+
+                if should_add {
+                    blocks.push(Block::new(x, y, color));
                 }
-            } else {
-                // Random patterns for levels 10+ (seeded by level number)
-                use rand::{Rng, SeedableRng};
-                use rand::rngs::StdRng;
-                
-                // Use multiple entropy sources for better randomization
-                let seed = (level as u64).wrapping_mul(54321)
-                    .wrapping_add((level as u64 % 7).wrapping_mul(11111))
-                    .wrapping_add((level as u64 / 5).wrapping_mul(99999));
-                let mut rng = StdRng::seed_from_u64(seed);
-                let pattern_type = rng.gen_range(0..12); // 12 unique patterns (0-11)
-                
-                // Re-seed for this specific block position
-                let block_seed = level as u64 * 1000 + row as u64 * 100 + col as u64;
-                let mut block_rng = StdRng::seed_from_u64(block_seed);
-
-                
-                match pattern_type {
-                    0 => {
-                        // Random scatter (60-80% density)
-                        let density = rng.gen_range(0.6..0.8);
-                        block_rng.gen::<f32>() < density
-                    },
-                    1 => {
-                        // Wave pattern
-                        let wave = (col as f32 * 0.5 + row as f32 * 0.3).sin();
-                        let threshold = rng.gen_range(-0.3..0.3);
-                        wave > threshold
-                    },
-                    2 => {
-                        // Diagonal stripes
-                        let stripe_width = rng.gen_range(2..5);
-                        ((row + col) / stripe_width) % 2 == 0
-                    },
-                    3 => {
-                        // Random rings from center
-                        let center_col = BLOCK_COLS as f32 / 2.0;
-                        let center_row = BLOCK_ROWS as f32 / 2.0;
-                        let dx = col as f32 - center_col;
-                        let dy = row as f32 - center_row;
-                        let dist = (dx * dx + dy * dy).sqrt();
-                        let ring_size = rng.gen_range(1.5..3.0);
-                        (dist / ring_size) as i32 % 2 == 0
-                    },
-                    4 => {
-                        // Checkerboard with random offset
-                        let offset = rng.gen_range(0..3);
-                        (row + col + offset) % 2 == 0
-                    },
-                    5 => {
-                        // Cellular automata-like
-                        let neighbor_sum = (row % 3) + (col % 3);
-                        let rule = rng.gen_range(2..6);
-                        neighbor_sum == rule || neighbor_sum == rule + 1
-                    },
-                    6 => {
-                        // Honeycomb (staggered grid)
-                        let is_even_row = row % 2 == 0;
-                        if is_even_row {
-                            col % 2 == 0
-                        } else {
-                            col % 2 == 1
-                        }
-                    },
-                    7 => {
-                        // Symmetry (Mirror left to right)
-                        let center_col = BLOCK_COLS / 2;
-                        if col < center_col {
-                            // Random left side
-                            block_rng.gen_bool(0.6)
-                        } else {
-                            // Mirror right side
-                            let mirror_col = BLOCK_COLS - 1 - col;
-                            // Re-seed for mirror position to get same value
-                            let mirror_seed = level as u64 * 1000 + row as u64 * 100 + mirror_col as u64;
-                            let mut mirror_rng = StdRng::seed_from_u64(mirror_seed);
-                            mirror_rng.gen_bool(0.6)
-                        }
-                    },
-                    8 => {
-                        // Maze-like (Bitwise logic)
-                        (col ^ row) % 3 == 0 || (col & row) % 5 == 0
-                    },
-                    9 => {
-                        // Diamonds
-                        let size = 4;
-                        let cx = (col / size) * size + size / 2;
-                        let cy = (row / size) * size + size / 2;
-                        let dist = (col as i32 - cx as i32).abs() + (row as i32 - cy as i32).abs();
-                        dist == size as i32 / 2
-                    },
-                    10 => {
-                        // Invaders (Space Invader shapes)
-                        let shape_x = col % 6;
-                        let shape_y = row % 5;
-                        // Simple invader-like logic
-                        match shape_y {
-                            0 | 4 => shape_x == 2 || shape_x == 3,
-                            1 | 3 => shape_x > 0 && shape_x < 5,
-                            2 => shape_x != 2 && shape_x != 3,
-                            _ => true,
-                        }
-                    },
-                    _ => {
-                        // DNA (Double Helix) - pattern 11 and fallback
-                        let phase = row as f32 * 0.5;
-                        let sine1 = (phase).sin() * 5.0 + 10.0; // Center around col 10
-                        let sine2 = (phase + std::f32::consts::PI).sin() * 5.0 + 10.0;
-                        
-                        let col_f = col as f32;
-                        (col_f - sine1).abs() < 1.5 || (col_f - sine2).abs() < 1.5
-                    },
-                }
-            };
-
-            if should_add {
-                blocks.push(Block::new(x, y, color));
             }
         }
-    }
 
-    blocks
+        // For levels 1-9, always return the pattern
+        // For levels 10+, ensure minimum block count
+        if level <= 9 || blocks.len() >= MIN_BLOCKS || attempt >= MAX_RETRIES {
+            return blocks;
+        }
+        
+        // If we didn't get enough blocks, retry with a different seed
+        attempt += 1;
+    }
 }
 
 pub fn check_collision(rect1: Rect, rect2: Rect) -> bool {
