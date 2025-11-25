@@ -2299,29 +2299,10 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             render_volume_slider(canvas, &menu.music_slider, font);
             render_button(canvas, &menu.sfx_toggle_button, font);
             render_volume_slider(canvas, &menu.sfx_slider, font);
-            render_button(canvas, &menu.resolution_button, font);
             render_button(canvas, &menu.fullscreen_button, font);
             render_button(canvas, &menu.back_button, font);
         }
-        MenuState::ResolutionConfirm => {
-            // Title
-            let title = format!("Keep Resolution? {:.1}s", menu.confirmation_timer);
-            if let Ok(surface) = font.render(&title).blended(SdlColor::RGB(255, 200, 100)) {
-                let texture_creator = canvas.texture_creator();
-                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
-                    let target = Rect::new(
-                        WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
-                        WINDOW_HEIGHT as i32 / 2 - 50,
-                        surface.width(),
-                        surface.height(),
-                    );
-                    let _ = canvas.copy(&texture, None, Some(target));
-                };
-            }
-            
-            render_button(canvas, &menu.confirm_button, font);
-            render_button(canvas, &menu.cancel_button, font);
-        }
+
     }
 }
 

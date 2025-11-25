@@ -146,7 +146,9 @@ impl AudioManager {
                 let song_path = &self.songs[self.current_song_index];
                 if let Ok(music) = Music::from_file(song_path) {
                     Music::set_volume(self.music_volume);
-                    let _ = music.play(-1); // Loop
+                    // Play ONCE (1), not loop (-1)
+                    // This allows is_playing() to return false when done
+                    let _ = music.play(1); 
                     
                     // Leak the music to keep it alive
                     std::mem::forget(music);
@@ -168,7 +170,8 @@ impl AudioManager {
         let song_path = &self.songs[self.current_song_index];
         if let Ok(music) = Music::from_file(song_path) {
             Music::set_volume(self.music_volume);
-            let _ = music.play(-1); // -1 = loop indefinitely
+            // Play ONCE (1), not loop (-1)
+            let _ = music.play(1); 
             
             // Leak the music to keep it alive (SDL2 requirement)
             std::mem::forget(music);

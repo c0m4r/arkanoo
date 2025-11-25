@@ -118,26 +118,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .ok();
         }
 
-        // Handle resolution confirmation timer
-        let dt = 1.0 / 60.0; // Approximate delta time
-        if menu.update_timer(dt) {
-            // Timer expired, revert resolution
-            let (w, h) = menu.resolutions[menu.current_resolution_idx];
-            let _ = canvas.window_mut().set_size(w, h);
-            let scale_x = w as f32 / WINDOW_WIDTH as f32;
-            let scale_y = h as f32 / WINDOW_HEIGHT as f32;
-            let _ = canvas.set_scale(scale_x, scale_y);
-            
-            // Reload font
-            if let Ok(new_font) = load_font(scale_y) {
-                font = new_font;
-            }
-            
-            menu.state = MenuState::Settings;
-            menu.pending_resolution_idx = None;
-            menu.resolution_button.label = format!("{}x{}", w, h);
-        }
-
         // Handle events
         for event in event_pump.poll_iter() {
             match event {
@@ -301,52 +281,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             MenuAction::ToggleSFX => {
                                 audio_manager.toggle_sfx_mute();
                                 menu.set_sfx_muted(audio_manager.is_sfx_muted());
-                            }
-                            MenuAction::CycleResolution => {
-                                // Cycle to next resolution
-                                let next_idx = (menu.current_resolution_idx + 1) % menu.resolutions.len();
-                                menu.pending_resolution_idx = Some(next_idx);
-                                let (width, height) = menu.resolutions[next_idx];
-                                menu.resolution_button.label = format!("{}x{}", width, height);
-                                
-                                // Apply resolution change
-                                let _ = canvas.window_mut().set_size(width, height);
-                                let scale_x = width as f32 / WINDOW_WIDTH as f32;
-                                let scale_y = height as f32 / WINDOW_HEIGHT as f32;
-                                let _ = canvas.set_scale(scale_x, scale_y);
-                                
-                                // Reload font
-                                if let Ok(new_font) = load_font(scale_y) {
-                                    font = new_font;
-                                }
-
-                                // Start confirmation
-                                menu.state = MenuState::ResolutionConfirm;
-                                menu.confirmation_timer = 5.0;
-                            }
-                            MenuAction::ConfirmResolution => {
-                                if let Some(idx) = menu.pending_resolution_idx {
-                                    menu.current_resolution_idx = idx;
-                                }
-                                menu.pending_resolution_idx = None;
-                                menu.state = MenuState::Settings;
-                            }
-                            MenuAction::RevertResolution => {
-                                // Revert
-                                let (w, h) = menu.resolutions[menu.current_resolution_idx];
-                                let _ = canvas.window_mut().set_size(w, h);
-                                let scale_x = w as f32 / WINDOW_WIDTH as f32;
-                                let scale_y = h as f32 / WINDOW_HEIGHT as f32;
-                                let _ = canvas.set_scale(scale_x, scale_y);
-                                
-                                // Reload font
-                                if let Ok(new_font) = load_font(scale_y) {
-                                    font = new_font;
-                                }
-                                
-                                menu.state = MenuState::Settings;
-                                menu.pending_resolution_idx = None;
-                                menu.resolution_button.label = format!("{}x{}", w, h);
                             }
                             MenuAction::ToggleFullscreen => {
                                 is_fullscreen = !is_fullscreen;

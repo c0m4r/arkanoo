@@ -4,7 +4,7 @@ use sdl2::rect::Rect;
 pub enum MenuState {
     Main,
     Settings,
-    ResolutionConfirm,
+
 }
 
 pub struct Button {
@@ -79,19 +79,14 @@ pub struct Menu {
     pub quit_button: Button,
     pub music_toggle_button: Button,
     pub sfx_toggle_button: Button,
-    pub resolution_button: Button,
+
     pub fullscreen_button: Button,
     pub music_slider: VolumeSlider,
     pub sfx_slider: VolumeSlider,
-    pub confirm_button: Button,
-    pub cancel_button: Button,
+
     pub music_muted: bool,
     pub sfx_muted: bool,
     pub is_fullscreen: bool,
-    pub resolutions: Vec<(u32, u32)>,
-    pub current_resolution_idx: usize,
-    pub pending_resolution_idx: Option<usize>,
-    pub confirmation_timer: f32,
 }
 
 impl Menu {
@@ -108,23 +103,14 @@ impl Menu {
             back_button: Button::new(center_x, center_y + 170, 200, 40, "Back"),
             music_toggle_button: Button::new(center_x, center_y - 120, 200, 40, "Music: ON"),
             sfx_toggle_button: Button::new(center_x, center_y - 20, 200, 40, "SFX: ON"),
-            resolution_button: Button::new(center_x, center_y + 80, 200, 40, "1280x720"),
+
             fullscreen_button: Button::new(center_x, center_y + 130, 200, 40, "Windowed"),
             music_slider: VolumeSlider::new(center_x, center_y - 70, 200),
             sfx_slider: VolumeSlider::new(center_x, center_y + 30, 200),
-            confirm_button: Button::new(center_x - 110, center_y + 20, 100, 40, "Keep"),
-            cancel_button: Button::new(center_x + 10, center_y + 20, 100, 40, "Revert"),
+
             music_muted: false,
             sfx_muted: false,
             is_fullscreen: false,
-            resolutions: vec![
-                (1280, 720),
-                (1920, 1080),
-                (2560, 1440),
-            ],
-            current_resolution_idx: 0,
-            pending_resolution_idx: None,
-            confirmation_timer: 0.0,
         }
     }
 
@@ -139,14 +125,11 @@ impl Menu {
             MenuState::Settings => {
                 self.music_toggle_button.update_hover(mouse_x, mouse_y);
                 self.sfx_toggle_button.update_hover(mouse_x, mouse_y);
-                self.resolution_button.update_hover(mouse_x, mouse_y);
+
                 self.fullscreen_button.update_hover(mouse_x, mouse_y);
                 self.back_button.update_hover(mouse_x, mouse_y);
             }
-            MenuState::ResolutionConfirm => {
-                self.confirm_button.update_hover(mouse_x, mouse_y);
-                self.cancel_button.update_hover(mouse_x, mouse_y);
-            }
+
         }
     }
 
@@ -157,15 +140,7 @@ impl Menu {
         }
     }
 
-    pub fn update_timer(&mut self, dt: f32) -> bool {
-        if self.state == MenuState::ResolutionConfirm {
-            self.confirmation_timer -= dt;
-            if self.confirmation_timer <= 0.0 {
-                return true; // Timer expired, revert
-            }
-        }
-        false
-    }
+
 
     pub fn set_music_muted(&mut self, muted: bool) {
         self.music_muted = muted;
@@ -204,10 +179,9 @@ pub enum MenuAction {
     CloseSettings,
     ToggleMusic,
     ToggleSFX,
-    CycleResolution,
+
     ToggleFullscreen,
-    ConfirmResolution,
-    RevertResolution,
+
 }
 
 pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction {
@@ -233,9 +207,7 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             if menu.sfx_toggle_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::ToggleSFX;
             }
-            if menu.resolution_button.is_clicked(mouse_x, mouse_y) {
-                return MenuAction::CycleResolution;
-            }
+
             if menu.fullscreen_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::ToggleFullscreen;
             }
@@ -243,14 +215,7 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
                 return MenuAction::CloseSettings;
             }
         }
-        MenuState::ResolutionConfirm => {
-            if menu.confirm_button.is_clicked(mouse_x, mouse_y) {
-                return MenuAction::ConfirmResolution;
-            }
-            if menu.cancel_button.is_clicked(mouse_x, mouse_y) {
-                return MenuAction::RevertResolution;
-            }
-        }
+
     }
     MenuAction::None
 }
