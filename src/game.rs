@@ -397,9 +397,10 @@ impl Game {
                         // LongPaddle: 50%, ExtraBall: 25%, GhostBall: 15%, Rocket: 10%
                         let bonus_type = match rng.gen_range(0..100) {
                             0..=49 => BonusType::LongPaddle,     // 40%
-                            50..=84 => BonusType::ExtraBall,     // 35%
-                            85..=99 => BonusType::GhostBall,     // 15%
-                            _ => BonusType::Rocket,              // 10%
+                            50..=74 => BonusType::ExtraBall,     // 35%
+                            75..=89 => BonusType::GhostBall,     // 15%
+                            90..=99 => BonusType::Rocket,        // 10%
+                            _ => BonusType::LongPaddle,          // Fallback to most common
                         };
                         self.bonuses.push(Bonus::new(
                             block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
