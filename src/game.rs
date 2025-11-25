@@ -47,9 +47,10 @@ impl Game {
 
     pub fn new_level(level: usize) -> Self {
         let paddle = Paddle::new();
+        // Ball starts on top of paddle
         let initial_ball = Ball::new(
-            WINDOW_WIDTH as f32 / 2.0,
-            WINDOW_HEIGHT as f32 / 2.0,
+            paddle.x as f32 + paddle.width as f32 / 2.0 - BALL_SIZE as f32 / 2.0,
+            paddle.y as f32 - BALL_SIZE as f32,
         );
         
         Game {
@@ -92,12 +93,12 @@ impl Game {
         }
     }    
     pub fn start_next_level(&mut self) {
-        // Infinite levels - always allow progression
         self.current_level += 1;
         self.paddle = Paddle::new();
+        // Ball starts on top of paddle
         self.balls = vec![Ball::new(
-            WINDOW_WIDTH as f32 / 2.0,
-            WINDOW_HEIGHT as f32 / 2.0,
+            self.paddle.x as f32 + self.paddle.width as f32 / 2.0 - BALL_SIZE as f32 / 2.0,
+            self.paddle.y as f32 - BALL_SIZE as f32,
         )];
         self.blocks = create_blocks(self.current_level);
         self.bonuses.clear();
@@ -125,6 +126,34 @@ impl Game {
                 self.paddle.y as f32 - 20.0,
             ));
             play_sound(SoundEffect::Load);
+        }
+    }
+    
+    pub fn launch_balls(&mut self) {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        for ball in &mut self.balls {
+            if ball.attached_to_paddle {
+                ball.launch();
+                
+                // Create particle burst effect at launch
+                let cx = ball.x + BALL_SIZE as f32 / 2.0;
+                let cy = ball.y + BALL_SIZE as f32 / 2.0;
+                
+                for _ in 0..20 {
+                    let angle = rng.gen::<f32>() * std::f32::consts::PI * 2.0;
+                    let speed = rng.gen::<f32>() * 4.0 + 2.0;
+                    
+                    self.particles.push(Particle::new(
+                        cx,
+                        cy,
+                        angle.cos() * speed,
+                        angle.sin() * speed,
+                        Color { r: 255, g: 200, b: 50 }, // Golden/yellow launch effect
+                    ));
+                }
+            }
         }
     }
 
@@ -163,6 +192,12 @@ impl Game {
                 
                 // Skip normal physics
                 continue;
+            }
+
+            // If ball is attached to paddle, keep it on the paddle
+            if ball.attached_to_paddle {
+                ball.x = self.paddle.x as f32 + self.paddle.width as f32 / 2.0 - BALL_SIZE as f32 / 2.0;
+                ball.y = self.paddle.y as f32 - BALL_SIZE as f32;
             }
 
             ball.update();
@@ -361,11 +396,10 @@ impl Game {
                         // Weighted bonus distribution:
                         // LongPaddle: 50%, ExtraBall: 25%, GhostBall: 15%, Rocket: 10%
                         let bonus_type = match rng.gen_range(0..100) {
-                            0..=49 => BonusType::LongPaddle,     // 50%
-                            50..=74 => BonusType::ExtraBall,     // 25%
-                            75..=89 => BonusType::GhostBall,     // 15%
-                            90..=99 => BonusType::Rocket,        // 10%
-                            _ => BonusType::LongPaddle,          // Fallback to most common
+                            0..=49 => BonusType::LongPaddle,     // 40%
+                            50..=84 => BonusType::ExtraBall,     // 35%
+                            85..=99 => BonusType::GhostBall,     // 15%
+                            _ => BonusType::Rocket,              // 10%
                         };
                         self.bonuses.push(Bonus::new(
                             block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
@@ -586,10 +620,10 @@ impl Game {
             if self.lives == 0 {
                 self.state = GameState::GameOver;
             } else {
-                // Spawn new ball
+                // Spawn new ball on paddle
                 self.balls.push(Ball::new(
-                    WINDOW_WIDTH as f32 / 2.0,
-                    WINDOW_HEIGHT as f32 / 2.0,
+                    self.paddle.x as f32 + self.paddle.width as f32 / 2.0 - BALL_SIZE as f32 / 2.0,
+                    self.paddle.y as f32 - BALL_SIZE as f32,
                 ));
             }
         }

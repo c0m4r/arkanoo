@@ -127,34 +127,55 @@ pub struct Ball {
     pub active: bool,
     pub spin: f32,
     pub trail_positions: std::collections::VecDeque<(f32, f32)>, // Recent positions for trail effect
+    pub attached_to_paddle: bool, // Ball starts attached, auto-launches after delay
+    pub launch_timer: u32, // Frames to wait before auto-launch
 }
 
 impl Ball {
     pub fn new(x: f32, y: f32) -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        
-        // Randomly choose initial direction: 0 = left-up, 1 = straight up, 2 = right-up
-        let direction = rng.gen_range(0..3);
-        let vel_x = match direction {
-            0 => -4.0,  // Left-up
-            1 => 0.0,   // Straight up
-            _ => 4.0,   // Right-up
-        };
-        
         Ball {
             x,
             y,
-            vel_x,
-            vel_y: -4.0,
+            vel_x: 0.0,  // Start with zero velocity
+            vel_y: 0.0,  // Ball is attached to paddle
             active: true,
             spin: 0.0,
             trail_positions: std::collections::VecDeque::new(),
+            attached_to_paddle: true, // Start attached
+            launch_timer: 30, // Auto-launch after 0.5 seconds (30 frames at 60 FPS)
+        }
+    }
+    
+    pub fn launch(&mut self) {
+        if self.attached_to_paddle {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            
+            // Randomly choose initial direction: 0 = left-up, 1 = straight up, 2 = right-up
+            let direction = rng.gen_range(0..3);
+            self.vel_x = match direction {
+                0 => -4.0,  // Left-up
+                1 => 0.0,   // Straight up
+                _ => 4.0,   // Right-up
+            };
+            self.vel_y = -4.0; // Always go up
+            self.attached_to_paddle = false;
         }
     }
 
     pub fn update(&mut self) {
         if !self.active {
+            return;
+        }
+        
+        // If attached to paddle, count down to auto-launch
+        if self.attached_to_paddle {
+            if self.launch_timer > 0 {
+                self.launch_timer -= 1;
+            } else {
+                // Auto-launch when timer expires
+                self.launch();
+            }
             return;
         }
         

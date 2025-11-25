@@ -7,7 +7,7 @@ mod menu;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
-use sdl2::image::{LoadTexture, InitFlag};
+use sdl2::image::{LoadTexture, LoadSurface, InitFlag};
 use std::time::Duration;
 
 use crate::entities::{WINDOW_WIDTH, WINDOW_HEIGHT};
@@ -33,6 +33,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let mut canvas = window.into_canvas().build()?;
+    
+    // Set window icon
+    if let Ok(icon) = sdl2::surface::Surface::from_file("assets/icon-64.png") {
+        canvas.window_mut().set_icon(icon);
+    }
     
     // Set initial scale
     let _ = canvas.set_scale(1.0, 1.0);
@@ -200,14 +205,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     if game.state == GameState::Playing {
-                        let mut sound_to_play = None;
-                        game.fire_rocket(&mut |effect| sound_to_play = Some(effect));
-                        if let Some(effect) = sound_to_play {
-                            match effect {
-                                crate::game::SoundEffect::Bounce => audio_manager.play_bounce(),
-                                crate::game::SoundEffect::Oh => audio_manager.play_oh(),
-                                crate::game::SoundEffect::Load => audio_manager.play_load(),
-                                crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+                        // Check if any balls are attached to paddle
+                        let has_attached_balls = game.balls.iter().any(|b| b.attached_to_paddle);
+                        
+                        if has_attached_balls {
+                            // Launch attached balls
+                            game.launch_balls();
+                        } else {
+                            // Fire rocket if no balls are attached
+                            let mut sound_to_play = None;
+                            game.fire_rocket(&mut |effect| sound_to_play = Some(effect));
+                            if let Some(effect) = sound_to_play {
+                                match effect {
+                                    crate::game::SoundEffect::Bounce => audio_manager.play_bounce(),
+                                    crate::game::SoundEffect::Oh => audio_manager.play_oh(),
+                                    crate::game::SoundEffect::Load => audio_manager.play_load(),
+                                    crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+                                }
                             }
                         }
                     }
@@ -297,6 +311,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Click to start next level
                         game.start_next_level();
                         // Music continues playing
+                    } else if game.state == GameState::Victory {
+                        // Click to start infinite mode (level 10)
+                        game.start_next_level();
                     }
 
                 }
