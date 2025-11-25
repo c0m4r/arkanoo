@@ -6,8 +6,7 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 
 ## Download
 
-- GNU/Linux (glibc): https://github.com/c0m4r/arkanoo/releases/download/0.3.0/arkanoo-0.3.0-linux.tar.gz (sha256:95f34520ed7a053dff264e707364400a2321df51501d7fcfaa47c3614b3f3808)
-- Windows 64-bit: https://github.com/c0m4r/arkanoo/releases/download/0.3.0/arkanoo-0.3.0-windows.zip (sha256:067e86b9f5552a0587a33a80eb4178d02fb6173da80b283741253d7dfee0088c)
+https://github.com/c0m4r/arkanoo/releases
 
 ## Features
 
