@@ -1,8 +1,8 @@
-# Arkanoo 🎮
+# Arkanoo <img src="assets/icon-32.png" alt="" />
 
 A fully-featured Arkanoid/Breakout game written in Rust.
 
-<video src="https://github.com/user-attachments/assets/12d6c6f0-f578-4257-993d-558440049dc0"></video>
+<img width="1280" height="749" alt="image" src="https://github.com/user-attachments/assets/28ada6ce-9558-45d7-b08f-1c5ac9c8e8bb" />
 
 ## Download
 
@@ -44,6 +44,8 @@ https://github.com/c0m4r/arkanoo/releases
 - 🖱️ **Mouse Control** - Control paddle with mouse movement
 - 🏆 **Level Transitions** - Win animations and prompts between levels
 - ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed and hearts shatter
+
+<video src="https://github.com/user-attachments/assets/47f5c644-4434-4ea0-9d2b-bda05203688c"></video>
 
 ## Visual Enhancements
 
