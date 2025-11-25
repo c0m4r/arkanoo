@@ -323,6 +323,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let _ = canvas.window_mut().set_fullscreen(sdl2::video::FullscreenType::Off);
                                 }
                             }
+                            MenuAction::ToggleGravity => {
+                                game.toggle_gravity_mode();
+                                menu.set_gravity_mode(game.gravity_mode);
+                            }
                             MenuAction::None => {}
                         }
                     } else if game.state == GameState::LevelTransition {

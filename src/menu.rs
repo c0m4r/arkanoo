@@ -81,12 +81,14 @@ pub struct Menu {
     pub sfx_toggle_button: Button,
 
     pub fullscreen_button: Button,
+    pub gravity_mode_button: Button,
     pub music_slider: VolumeSlider,
     pub sfx_slider: VolumeSlider,
 
     pub music_muted: bool,
     pub sfx_muted: bool,
     pub is_fullscreen: bool,
+    pub gravity_mode: bool,
 }
 
 impl Menu {
@@ -96,10 +98,11 @@ impl Menu {
 
         Menu {
             state: MenuState::Main,
-            resume_button: Button::new(center_x, center_y - 80, 200, 40, "Resume"),
-            restart_button: Button::new(center_x, center_y - 30, 200, 40, "Restart"),
-            settings_button: Button::new(center_x, center_y + 20, 200, 40, "Settings"),
-            quit_button: Button::new(center_x, center_y + 70, 200, 40, "Quit"),
+            resume_button: Button::new(center_x, center_y - 100, 200, 40, "Resume"),
+            restart_button: Button::new(center_x, center_y - 50, 200, 40, "Restart"),
+            gravity_mode_button: Button::new(center_x, center_y, 200, 40, "Gravity Mode"),
+            settings_button: Button::new(center_x, center_y + 50, 200, 40, "Settings"),
+            quit_button: Button::new(center_x, center_y + 100, 200, 40, "Quit"),
             back_button: Button::new(center_x, center_y + 170, 200, 40, "Back"),
             music_toggle_button: Button::new(center_x, center_y - 120, 200, 40, "Music: ON"),
             sfx_toggle_button: Button::new(center_x, center_y - 20, 200, 40, "SFX: ON"),
@@ -111,6 +114,7 @@ impl Menu {
             music_muted: false,
             sfx_muted: false,
             is_fullscreen: false,
+            gravity_mode: false,
         }
     }
 
@@ -119,13 +123,13 @@ impl Menu {
             MenuState::Main => {
                 self.resume_button.update_hover(mouse_x, mouse_y);
                 self.restart_button.update_hover(mouse_x, mouse_y);
+                self.gravity_mode_button.update_hover(mouse_x, mouse_y);
                 self.settings_button.update_hover(mouse_x, mouse_y);
                 self.quit_button.update_hover(mouse_x, mouse_y);
             }
             MenuState::Settings => {
                 self.music_toggle_button.update_hover(mouse_x, mouse_y);
                 self.sfx_toggle_button.update_hover(mouse_x, mouse_y);
-
                 self.fullscreen_button.update_hover(mouse_x, mouse_y);
                 self.back_button.update_hover(mouse_x, mouse_y);
             }
@@ -168,6 +172,11 @@ impl Menu {
             "Windowed".to_string()
         };
     }
+    
+    pub fn set_gravity_mode(&mut self, gravity_mode: bool) {
+        self.gravity_mode = gravity_mode;
+        // Keep label as "Gravity Mode" - don't change it
+    }
 }
 
 pub enum MenuAction {
@@ -179,9 +188,8 @@ pub enum MenuAction {
     CloseSettings,
     ToggleMusic,
     ToggleSFX,
-
     ToggleFullscreen,
-
+    ToggleGravity,
 }
 
 pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction {
@@ -192,6 +200,9 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             }
             if menu.restart_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::Restart;
+            }
+            if menu.gravity_mode_button.is_clicked(mouse_x, mouse_y) {
+                return MenuAction::ToggleGravity;
             }
             if menu.settings_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::OpenSettings;
@@ -207,7 +218,6 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             if menu.sfx_toggle_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::ToggleSFX;
             }
-
             if menu.fullscreen_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::ToggleFullscreen;
             }

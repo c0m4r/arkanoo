@@ -1032,16 +1032,13 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                     canvas.set_draw_color(SdlColor::RGB(10, 10, 20));
                     canvas.clear();
                     
-                    // Thunder flash
-                    // Random chance for thunder based on time
-                    let thunder_seed = (time * 0.01) as u64; // Change seed slowly
+                    // Thunder flash - DISABLED (removed lightning effect)
+                    /*let thunder_seed = (time * 0.01) as u64; // Change seed slowly
                     let mut thunder_rng = StdRng::seed_from_u64(thunder_seed + level as u64);
                     
                     // Occasional flash (0.5% chance per frame check, but seed changes slower so it lasts a bit)
                     if thunder_rng.gen_bool(0.02) && (time as u64 % 10 < 3) { 
-                         // Flash white
-                         canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 150));
-                         let _ = canvas.fill_rect(Rect::new(0, 0, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32));
+                         
                          
                          // Lightning bolt
                          canvas.set_draw_color(SdlColor::RGB(255, 255, 255));
@@ -1061,7 +1058,8 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                              curr_x = next_x;
                              curr_y = next_y;
                          }
-                    }
+                    }*/
+                    
                     
                     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
                     
@@ -2115,6 +2113,32 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
             let _ = canvas.copy(&texture, None, Some(target));
         };
     }
+    
+    // Draw GRAVITY MODE indicator (if active)
+    if game.gravity_mode {
+        let gravity_text = "GRAVITY MODE";
+        // Pulsing orange/red color to make it stand out
+        let pulse = (game.frame_count as f32 * 0.1).sin() * 0.3 + 0.7;
+        let gravity_color = SdlColor::RGB(
+            (255.0 * pulse) as u8,
+            (100.0 * pulse) as u8,
+            0,
+        );
+        
+        if let Ok(surface) = font.render(gravity_text).blended(gravity_color) {
+            let texture_creator = canvas.texture_creator();
+            if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                // Position below level indicator
+                let target = Rect::new(
+                    WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2, 
+                    35, 
+                    surface.width(), 
+                    surface.height()
+                );
+                let _ = canvas.copy(&texture, None, Some(target));
+            };
+        }
+    }
 }
 
 /// Draw a particle (glass shard)
@@ -2307,7 +2331,7 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
                 if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
                     let target = Rect::new(
                         WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
-                        WINDOW_HEIGHT as i32 / 2 - 120,
+                        WINDOW_HEIGHT as i32 / 2 - 150,
                         surface.width(),
                         surface.height(),
                     );
@@ -2317,6 +2341,7 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             
             render_button(canvas, &menu.resume_button, font);
             render_button(canvas, &menu.restart_button, font);
+            render_button(canvas, &menu.gravity_mode_button, font);
             render_button(canvas, &menu.settings_button, font);
             render_button(canvas, &menu.quit_button, font);
         }

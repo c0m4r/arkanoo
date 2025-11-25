@@ -31,6 +31,7 @@ pub struct Game {
     pub max_speed_record_frame: u64, // Frame when new record was set (for effects)
     pub portal_active: bool, // Portal activated at 3600 px/s
     pub portal_completion_timer: u64, // Frames since all blocks consumed (for animation delay)
+    pub gravity_mode: bool, // Gravity mode enabled (heavier physics, no spin)
 }
 
 #[derive(Clone, Copy)]
@@ -74,6 +75,7 @@ impl Game {
             max_speed_record_frame: 0,
             portal_active: false,
             portal_completion_timer: 0,
+            gravity_mode: false,
         }
     }
 
@@ -201,7 +203,7 @@ impl Game {
                 ball.y = self.paddle.y as f32 - BALL_SIZE as f32;
             }
 
-            ball.update();
+            ball.update(self.gravity_mode);
             
             // Calculate current speed
             let speed_px_frame = (ball.vel_x.powi(2) + ball.vel_y.powi(2)).sqrt();
@@ -660,5 +662,9 @@ impl Game {
             GameState::LevelTransition => GameState::LevelTransition,
             GameState::SplashScreen => GameState::SplashScreen,
         };
+    }
+
+    pub fn toggle_gravity_mode(&mut self) {
+        self.gravity_mode = !self.gravity_mode;
     }
 }

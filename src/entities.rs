@@ -163,7 +163,7 @@ impl Ball {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, gravity_mode: bool) {
         if !self.active {
             return;
         }
@@ -201,11 +201,27 @@ impl Ball {
             self.trail_positions.clear();
         }
         
-        // Apply spin (Magnus effect approximation)
+        // Apply gravity mode physics - accelerate downward with terminal velocity
+    if gravity_mode && self.vel_y > 0.0 {
+        const TERMINAL_VELOCITY: f32 = 9.0; // Maximum downward speed (realistic physics)
+        if self.vel_y < TERMINAL_VELOCITY {
+            self.vel_y += 0.3; // Gravity acceleration
+            // Cap at terminal velocity
+            if self.vel_y > TERMINAL_VELOCITY {
+                self.vel_y = TERMINAL_VELOCITY;
+            }
+        }
+    }
+    
+    // Apply spin (Magnus effect approximation) - DISABLED in gravity mode
+    if !gravity_mode {
         self.vel_x += self.spin * 0.05;
         // Decay spin
         self.spin *= 0.98;
-        
+    } else {
+        // Gravity mode: zero out spin
+        self.spin = 0.0;
+    }    
         self.x += self.vel_x;
         self.y += self.vel_y;
 
