@@ -169,20 +169,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
-                Event::Window { win_event, .. } => {
-                    if let sdl2::event::WindowEvent::Maximized = win_event {
-                        // Get the current window size
-                        let (w, h) = canvas.window().size();
-                        
-                        // Update resolution to match window size
-                        let scale_x = w as f32 / WINDOW_WIDTH as f32;
-                        let scale_y = h as f32 / WINDOW_HEIGHT as f32;
-                        let _ = canvas.set_scale(scale_x, scale_y);
-                        
-                        // Reload font with new scale
-                        if let Ok(new_font) = load_font(scale_y) {
-                            font = new_font;
-                        }
+                Event::Window { win_event: sdl2::event::WindowEvent::Maximized, .. } => {
+                    // Get the current window size
+                    let (w, h) = canvas.window().size();
+                    
+                    // Update resolution to match window size
+                    let scale_x = w as f32 / WINDOW_WIDTH as f32;
+                    let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+                    let _ = canvas.set_scale(scale_x, scale_y);
+                    
+                    // Reload font with new scale
+                    if let Ok(new_font) = load_font(scale_y) {
+                        font = new_font;
                     }
                 }
                 

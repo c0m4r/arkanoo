@@ -20,7 +20,7 @@ impl PatternData {
 
     /// Save pattern to ASCII format
     /// * = empty space
-    /// 0-9 = color indices (0-5 currently used, 6-9 reserved for future)
+    ///   0-9 = color indices (0-5 currently used, 6-9 reserved for future)
     pub fn save_to_file(&self, dir: &str) -> Result<(), Box<dyn std::error::Error>> {
         fs::create_dir_all(dir)?;
         

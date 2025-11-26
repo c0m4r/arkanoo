@@ -1151,7 +1151,7 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                     canvas.set_draw_color(SdlColor::RGBA(200, 200, 255, 255));
                     let _ = canvas.fill_rect(Rect::new(sat_x as i32, sat_y as i32, 3, 3));
                     // Blinking light on satellite
-                    if (time as u64 / 30) % 2 == 0 {
+                    if (time as u64 / 30).is_multiple_of(2) {
                         canvas.set_draw_color(SdlColor::RGBA(255, 0, 0, 255));
                         let _ = canvas.draw_point(Point::new(sat_x as i32 + 1, sat_y as i32 + 1));
                     }
@@ -1659,6 +1659,7 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_game(
     canvas: &mut Canvas<Window>,
     game: &Game,
@@ -1740,7 +1741,7 @@ pub fn render_game(
         
         // Blinking text: "press space to launch"
         // Blink every 30 frames (about 0.5 seconds at 60 FPS)
-        if (game.frame_count / 30) % 2 == 0 {
+        if (game.frame_count / 30).is_multiple_of(2) {
             let text = "press space to launch";
             if let Ok(surface) = font.render(text).blended(SdlColor::RGB(255, 255, 100)) {
                 let texture_creator = canvas.texture_creator();
@@ -1883,7 +1884,7 @@ fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64, completion_timer: 
                 }
             }
         }
-    } else if completion_timer >= 31 && completion_timer <= 150 {
+    } else if (31..=150).contains(&completion_timer) {
         // Stage 2: Portal closing - rings shrink inward (2 seconds)
         let close_progress = (completion_timer - 31) as f32 / 120.0; // 0.0 to 1.0 over 120 frames
         
@@ -1902,7 +1903,7 @@ fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64, completion_timer: 
             
             // Purple gradient intensifies
             let color_shift = (i as f32 / 10.0 * 100.0) as u8;
-            let r = (150 + color_shift + (close_progress * 50.0) as u8).min(255);
+            let r = (150u16 + color_shift as u16 + (close_progress * 50.0) as u16).min(255) as u8;
             let b = (255 - color_shift).saturating_sub((close_progress * 100.0) as u8);
             
             // Draw ring segments
@@ -1921,7 +1922,7 @@ fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64, completion_timer: 
                 }
             }
         }
-    } else if completion_timer >= 151 && completion_timer <= 180 {
+    } else if (151..=180).contains(&completion_timer) {
         // Stage 3: Bright flash of light
         let flash_progress = (completion_timer - 151) as f32 / 30.0; // 0.0 to 1.0
         
@@ -1955,7 +1956,7 @@ fn draw_portal(canvas: &mut Canvas<Window>, frame_count: u64, completion_timer: 
                 }
             }
         }
-    } else if completion_timer >= 181 && completion_timer < 270 {
+    } else if (181..270).contains(&completion_timer) {
         // Stage 4: Fade out
         let fade_progress = (completion_timer - 181) as f32 / 89.0; // 0.0 to 1.0
         let fade_alpha = ((1.0 - fade_progress) * 150.0) as u8;
