@@ -4,6 +4,7 @@ mod rendering;
 mod audio;
 mod menu;
 mod editor;
+mod settings;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -17,8 +18,11 @@ use crate::rendering::{render_game, render_editor};
 use crate::audio::AudioManager;
 use crate::menu::{Menu, MenuState, MenuAction, handle_menu_click};
 use crate::editor::LevelEditor;
+use crate::settings::Settings;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load settings
+    let mut settings = Settings::load();
 
 
     // Initialize SDL2
@@ -29,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create window
     let window = video_subsystem
-        .window("Arkanoo", WINDOW_WIDTH, WINDOW_HEIGHT)
+        .window("Arkanoo", settings.window_width, settings.window_height)
         .position_centered()
         .resizable()
         .build()?;
@@ -94,20 +98,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create game, menu, and editor
     let mut game = Game::new();
+    // Apply gravity mode from settings
+    if settings.gravity_mode {
+        game.toggle_gravity_mode();
+    }
+
     let mut menu = Menu::new(WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut editor = LevelEditor::new();
-    menu.music_slider.set_value(audio_manager.get_music_volume());
-    menu.sfx_slider.set_value(audio_manager.get_sfx_volume());
-    menu.set_music_muted(audio_manager.is_music_muted());
-    menu.set_sfx_muted(audio_manager.is_sfx_muted());
-    menu.set_fullscreen(false);
+    
+    // Apply audio settings
+    audio_manager.set_music_volume(settings.music_volume);
+    audio_manager.set_sfx_volume(settings.sfx_volume);
+    audio_manager.set_music_muted(settings.music_muted);
+    audio_manager.set_sfx_muted(settings.sfx_muted);
+
+    // Update menu to reflect settings
+    menu.music_slider.set_value(settings.music_volume);
+    menu.sfx_slider.set_value(settings.sfx_volume);
+    menu.set_music_muted(settings.music_muted);
+    menu.set_sfx_muted(settings.sfx_muted);
+    menu.set_fullscreen(settings.fullscreen);
+    menu.set_gravity_mode(settings.gravity_mode);
 
     // Start playing music
     audio_manager.play_music();
 
     let mut mouse_down = false;
 
-    let mut is_fullscreen = false;
+    let mut is_fullscreen = settings.fullscreen;
+    if is_fullscreen {
+        let _ = canvas.window_mut().set_fullscreen(sdl2::video::FullscreenType::Desktop);
+    }
     
     // FPS tracking
     let mut frame_times: Vec<std::time::Instant> = Vec::new();
@@ -140,7 +161,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Handle events
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => break 'running,
+                Event::Quit { .. } => {
+                    // Save settings on exit
+                    settings.window_width = canvas.window().size().0;
+                    settings.window_height = canvas.window().size().1;
+                    settings.fullscreen = is_fullscreen;
+                    settings.music_volume = audio_manager.get_music_volume();
+                    settings.sfx_volume = audio_manager.get_sfx_volume();
+                    settings.music_muted = audio_manager.is_music_muted();
+                    settings.sfx_muted = audio_manager.is_sfx_muted();
+                    settings.gravity_mode = game.gravity_mode;
+                    
+                    if let Err(e) = settings.save() {
+                        eprintln!("Failed to save settings: {}", e);
+                    }
+                    
+                    break 'running;
+                }
                 
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     if game.state == GameState::LevelEditor {
@@ -218,6 +255,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
                     if game.state == GameState::Paused || game.state == GameState::GameOver || game.state == GameState::Victory {
+                        // Save settings on exit
+                        settings.window_width = canvas.window().size().0;
+                        settings.window_height = canvas.window().size().1;
+                        settings.fullscreen = is_fullscreen;
+                        settings.music_volume = audio_manager.get_music_volume();
+                        settings.sfx_volume = audio_manager.get_sfx_volume();
+                        settings.music_muted = audio_manager.is_music_muted();
+                        settings.sfx_muted = audio_manager.is_sfx_muted();
+                        settings.gravity_mode = game.gravity_mode;
+                        
+                        if let Err(e) = settings.save() {
+                            eprintln!("Failed to save settings: {}", e);
+                        }
+
                         break 'running;
                     } else if game.state == GameState::Playing {
                         // Cheat: Skip to next level
@@ -434,6 +485,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 canvas.window_mut().set_grab(true);
                             }
                             MenuAction::Quit => {
+                                // Save settings on exit
+                                // FIXME: these are currently off due to splashscreen not scaling correctly
+                                settings.window_width = 1280; //canvas.window().size().0;
+                                settings.window_height = 720; //canvas.window().size().1;
+                                settings.fullscreen = false; //is_fullscreen;
+                                // end of FIXME
+                                settings.music_volume = audio_manager.get_music_volume();
+                                settings.sfx_volume = audio_manager.get_sfx_volume();
+                                settings.music_muted = audio_manager.is_music_muted();
+                                settings.sfx_muted = audio_manager.is_sfx_muted();
+                                settings.gravity_mode = game.gravity_mode;
+                                
+                                if let Err(e) = settings.save() {
+                                    eprintln!("Failed to save settings: {}", e);
+                                }
+
                                 break 'running;
                             }
                             MenuAction::OpenSettings => {
@@ -441,6 +508,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::CloseSettings => {
                                 menu.state = MenuState::Main;
+                                // Save settings when closing settings menu
+                                // FIXME: these are currently off due to splashscreen not scaling correctly
+                                settings.window_width = 1280; //canvas.window().size().0;
+                                settings.window_height = 720; //canvas.window().size().1;
+                                settings.fullscreen = false; //is_fullscreen;
+                                // end of FIXME
+                                settings.music_volume = audio_manager.get_music_volume();
+                                settings.sfx_volume = audio_manager.get_sfx_volume();
+                                settings.music_muted = audio_manager.is_music_muted();
+                                settings.sfx_muted = audio_manager.is_sfx_muted();
+                                settings.gravity_mode = game.gravity_mode;
+                                
+                                if let Err(e) = settings.save() {
+                                    eprintln!("Failed to save settings: {}", e);
+                                }
                             }
                             MenuAction::ToggleMusic => {
                                 audio_manager.toggle_music_mute();
