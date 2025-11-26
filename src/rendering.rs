@@ -696,10 +696,10 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
             
             // Draw animated stars
             for i in 0..100 {
-                let x = ((i * 137 + (time * 0.5 * i as f32 * 0.01) as i32) % WINDOW_WIDTH as i32) as i32;
-                let y = ((i * 241) % WINDOW_HEIGHT as i32) as i32;
+                let x = (i * 137 + (time * 0.5 * i as f32 * 0.01) as i32) % WINDOW_WIDTH as i32;
+                let y = (i * 241) % WINDOW_HEIGHT as i32;
                 let brightness = ((time * 0.05 + i as f32 * 0.5).sin() * 127.0 + 128.0) as u8;
-                let size = 1 + (i % 3) as i32;
+                let size = 1 + (i % 3);
                 
                 canvas.set_draw_color(SdlColor::RGBA(brightness, brightness, 255, brightness));
                 let _ = canvas.fill_rect(Rect::new(x, y, size as u32, size as u32));
@@ -1302,8 +1302,8 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                     
                     // Grid nodes
                     let spacing = 100;
-                    let cols = WINDOW_WIDTH / spacing as u32 + 1;
-                    let rows = WINDOW_HEIGHT / spacing as u32 + 1;
+                    let cols = WINDOW_WIDTH / spacing + 1;
+                    let rows = WINDOW_HEIGHT / spacing + 1;
                     
                     for r in 0..rows {
                         for c in 0..cols {
@@ -1426,7 +1426,7 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                             canvas.set_draw_color(SdlColor::RGBA(r, g, b, alpha));
                             
                             // Draw streak
-                            let tail_len = (speed * 2.0) as f32;
+                            let tail_len = speed * 2.0;
                             let tail_x = x - angle.cos() * tail_len;
                             let tail_y = y - angle.sin() * tail_len;
                             
@@ -1569,7 +1569,7 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                     
                     // Light shafts from top
                     for i in 0..5 {
-                         let x = (i * 200) as i32 + (time * 0.1).sin() as i32 * 50;
+                         let x = (i * 200) + (time * 0.1).sin() as i32 * 50;
                          let w = 100 + (time * 0.05 + i as f32).cos() as i32 * 20;
                          
                          // Gradient fade down
