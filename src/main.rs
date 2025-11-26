@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok();
 
     // Load splash screen texture
-    let splash_texture = texture_creator
+    let mut splash_texture = texture_creator
         .load_texture("assets/antigravity.webp")
         .ok();
     let mut splash_timer: u64 = 0; // Timer for splash screen (in frames)
@@ -169,18 +169,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
-                Event::Window { win_event: sdl2::event::WindowEvent::Maximized, .. } => {
-                    // Get the current window size
-                    let (w, h) = canvas.window().size();
-                    
-                    // Update resolution to match window size
-                    let scale_x = w as f32 / WINDOW_WIDTH as f32;
-                    let scale_y = h as f32 / WINDOW_HEIGHT as f32;
-                    let _ = canvas.set_scale(scale_x, scale_y);
-                    
-                    // Reload font with new scale
-                    if let Ok(new_font) = load_font(scale_y) {
-                        font = new_font;
+                Event::Window { win_event, .. } => {
+                    match win_event {
+                        sdl2::event::WindowEvent::Resized(..) |
+                        sdl2::event::WindowEvent::SizeChanged(..) |
+                        sdl2::event::WindowEvent::Maximized |
+                        sdl2::event::WindowEvent::Restored => {
+                            // Get the current window size
+                            let (w, h) = canvas.window().size();
+                            
+                            // Update resolution to match window size
+                            let scale_x = w as f32 / WINDOW_WIDTH as f32;
+                            let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+                            let _ = canvas.set_scale(scale_x, scale_y);
+                            
+                            // Reload font with new scale
+                            if let Ok(new_font) = load_font(scale_y) {
+                                font = new_font;
+                            }
+                        },
+                        _ => {}
                     }
                 }
                 
@@ -563,7 +571,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if game.state == GameState::LevelEditor {
             render_editor(&mut canvas, &editor, &font, editor_background.as_mut());
         } else {
-            render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_ref(), &font, current_fps, &mut texture_cache);
+            render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_mut(), &font, current_fps, splash_timer, &mut texture_cache);
         }
 
         // Target 60 FPS

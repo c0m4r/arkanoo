@@ -1666,9 +1666,10 @@ pub fn render_game(
     menu: &Menu,
     background: Option<&mut Texture>,
     heart_texture: Option<&Texture>,
-    splash_texture: Option<&Texture>,
+    splash_texture: Option<&mut Texture>,
     font: &Font,
     fps: f32,
+    splash_timer: u64,
     cache: &mut TextureCache,
 ) {
     // Handle splash screen state
@@ -1688,6 +1689,21 @@ pub fn render_game(
             // Center the splash image
             let x = (window_width as i32 - splash_width as i32) / 2;
             let y = (window_height as i32 - splash_height as i32) / 2;
+            
+            // Calculate alpha for fade effect
+            // 0-30: Fade In
+            // 30-150: Hold
+            // 150-180: Fade Out
+            let alpha = if splash_timer < 30 {
+                (splash_timer as f32 / 30.0 * 255.0) as u8
+            } else if splash_timer > 150 {
+                ((180 - splash_timer) as f32 / 30.0 * 255.0) as u8
+            } else {
+                255
+            };
+            
+            splash.set_blend_mode(sdl2::render::BlendMode::Blend);
+            splash.set_alpha_mod(alpha);
             
             let target_rect = Rect::new(x, y, splash_width, splash_height);
             let _ = canvas.copy(splash, None, Some(target_rect));
