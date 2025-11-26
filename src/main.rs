@@ -467,6 +467,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 game.state = GameState::LevelEditor;
                                 // Keep cursor shown and grabbed false
                             }
+                            MenuAction::OpenGithub => {
+                                let _ = webbrowser::open("https://github.com/c0m4r/arkanoo");
+                            }
                             MenuAction::None => {}
                         }
                     } else if game.state == GameState::LevelTransition {

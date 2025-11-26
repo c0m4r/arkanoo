@@ -2361,6 +2361,23 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             render_button(canvas, &menu.level_editor_button, font);
             render_button(canvas, &menu.settings_button, font);
             render_button(canvas, &menu.quit_button, font);
+            
+            // Github button
+            render_button(canvas, &menu.github_button, font);
+            
+            // Version string
+            if let Ok(surface) = font.render(&menu.version_string).blended(SdlColor::RGB(150, 150, 150)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let target = Rect::new(
+                        menu.github_button.rect.x() - surface.width() as i32 - 20,
+                        menu.github_button.rect.y() + (menu.github_button.rect.height() as i32 - surface.height() as i32) / 2,
+                        surface.width(),
+                        surface.height()
+                    );
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
         }
         MenuState::Settings => {
             // Render settings menu

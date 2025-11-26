@@ -80,11 +80,14 @@ pub struct Menu {
     pub quit_button: Button,
     pub music_toggle_button: Button,
     pub sfx_toggle_button: Button,
+    pub github_button: Button,
 
     pub fullscreen_button: Button,
     pub gravity_mode_button: Button,
     pub music_slider: VolumeSlider,
     pub sfx_slider: VolumeSlider,
+
+    pub version_string: String,
 
     pub music_muted: bool,
     pub sfx_muted: bool,
@@ -113,6 +116,10 @@ impl Menu {
             music_slider: VolumeSlider::new(center_x, center_y - 70, 200),
             sfx_slider: VolumeSlider::new(center_x, center_y + 30, 200),
 
+            // Bottom right corner
+            github_button: Button::new(window_width as i32 - 110, window_height as i32 - 50, 100, 40, "Github"),
+            version_string: format!("Version: {}", env!("CARGO_PKG_VERSION")),
+
             music_muted: false,
             sfx_muted: false,
             is_fullscreen: false,
@@ -129,6 +136,7 @@ impl Menu {
                 self.level_editor_button.update_hover(mouse_x, mouse_y);
                 self.settings_button.update_hover(mouse_x, mouse_y);
                 self.quit_button.update_hover(mouse_x, mouse_y);
+                self.github_button.update_hover(mouse_x, mouse_y);
             }
             MenuState::Settings => {
                 self.music_toggle_button.update_hover(mouse_x, mouse_y);
@@ -194,6 +202,7 @@ pub enum MenuAction {
     ToggleFullscreen,
     ToggleGravity,
     EnterLevelEditor,
+    OpenGithub,
 }
 
 pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction {
@@ -216,6 +225,9 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             }
             if menu.quit_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::Quit;
+            }
+            if menu.github_button.is_clicked(mouse_x, mouse_y) {
+                return MenuAction::OpenGithub;
             }
         }
         MenuState::Settings => {
