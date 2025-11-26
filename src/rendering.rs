@@ -2562,13 +2562,19 @@ pub fn render_editor(
     font: &Font,
     background: Option<&mut Texture>,
 ) {
-    // Draw background
+    // Draw background at full brightness first
     if let Some(bg) = background {
         canvas.copy(bg, None, None).ok();
     } else {
-        canvas.set_draw_color(SdlColor::RGB(20, 20, 30));
+        canvas.set_draw_color(SdlColor::RGB(0, 0, 0));
         canvas.clear();
     }
+    
+    // Overlay with 60% opacity black to make background 40% visible
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 153)); // 60% of 255 = 153
+    canvas.fill_rect(None).ok();
+    canvas.set_blend_mode(sdl2::render::BlendMode::None);
 
     let total_blocks_width = BLOCK_COLS as i32 * BLOCK_WIDTH;
     let offset_x = (WINDOW_WIDTH as i32 - total_blocks_width) / 2;
@@ -2631,7 +2637,7 @@ pub fn render_editor(
 
     // Draw pattern name (below title, editable indicator)
     let pattern_label = if editor.pattern_name_editing {
-        format!("Name: {}_ (Enter to finish)", editor.pattern_name)
+        format!("Name: {}_ (ESC to finish)", editor.pattern_name)
     } else {
         format!("Name: {} (N to edit)", editor.pattern_name)
     };

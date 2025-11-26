@@ -168,6 +168,7 @@ pub struct LevelEditor {
     pub is_dragging_left: bool,
     pub is_dragging_right: bool,
     pub last_drag_pos: Option<(i32, i32)>,
+    pub confirm_clear: bool, // Whether we're asking for clear confirmation
 }
 
 impl LevelEditor {
@@ -207,6 +208,7 @@ impl LevelEditor {
             is_dragging_left: false,
             is_dragging_right: false,
             last_drag_pos: None,
+            confirm_clear: false,
         }
     }
 
@@ -253,9 +255,22 @@ impl LevelEditor {
         }
     }
 
+    pub fn request_clear(&mut self) {
+        if !self.blocks.is_empty() {
+            self.confirm_clear = true;
+            self.show_message("Press C again to confirm clearing all blocks".to_string());
+        }
+    }
+    
     pub fn clear(&mut self) {
         self.blocks.clear();
+        self.confirm_clear = false;
         self.show_message("Pattern cleared".to_string());
+    }
+    
+    pub fn cancel_clear(&mut self) {
+        self.confirm_clear = false;
+        self.message.clear();
     }
 
     pub fn add_block_at(&mut self, mouse_x: i32, mouse_y: i32) {

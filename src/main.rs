@@ -144,11 +144,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     if game.state == GameState::LevelEditor {
-                        // Exit editor, return to menu
-                        game.state = GameState::Paused;
-                        menu.state = MenuState::Main;
-                        sdl_context.mouse().show_cursor(true);
-                        let _ = canvas.window_mut().set_grab(false);
+                        // If editing name, just cancel editing
+                        if editor.pattern_name_editing {
+                            editor.pattern_name_editing = false;
+                        } else {
+                            // Otherwise exit editor, return to menu
+                            game.state = GameState::Paused;
+                            menu.state = MenuState::Main;
+                            sdl_context.mouse().show_cursor(true);
+                            let _ = canvas.window_mut().set_grab(false);
+                        }
                     } else if game.state != GameState::GameOver && game.state != GameState::Victory {
                         game.toggle_pause();
                         menu.state = MenuState::Main;
@@ -255,36 +260,76 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 // Level editor keyboard shortcuts
                 Event::KeyDown { keycode: Some(key), .. } if game.state == GameState::LevelEditor => {
-                    match key {
-                        Keycode::S => {
-                            if let Err(e) = editor.save_pattern() {
-                                editor.show_message(e);
+                    // When editing name, only allow Return, Backspace, and N to toggle
+                    if editor.pattern_name_editing {
+                        match key {
+                            Keycode::Return => {
+                                editor.pattern_name_editing = false;
                             }
+                            Keycode::Backspace => {
+                                editor.handle_backspace();
+                            }
+                            Keycode::Escape => {
+                                // Cancel name editing
+                                editor.pattern_name_editing = false;
+                            }
+                            _ => {} // Ignore all other keys when editing name
                         }
-                        Keycode::C => {
-                            editor.clear();
+                    } else {
+                        // Normal key handling when not editing name
+                        match key {
+                            Keycode::S => {
+                                if let Err(e) = editor.save_pattern() {
+                                    editor.show_message(e);
+                                }
+                            }
+                            Keycode::C => {
+                                if editor.confirm_clear {
+                                    // Second press confirms
+                                    editor.clear();
+                                } else {
+                                    // First press requests confirmation
+                                    editor.request_clear();
+                                }
+                            }
+                            Keycode::N => {
+                                editor.pattern_name_editing = true;
+                                editor.cancel_clear(); // Cancel any pending clear
+                            }
+                            Keycode::Num0 => {
+                                editor.selected_color_index = 0;
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num1 => {
+                                editor.selected_color_index = 1;
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num2 => {
+                                editor.selected_color_index = 2;
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num3 => {
+                                editor.selected_color_index = 3;
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num4 => {
+                                editor.selected_color_index = 4;
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num5 => {
+                                editor.selected_color_index = 5;
+                                editor.cancel_clear();
+                            }
+                            _ => {}
                         }
-                        Keycode::N => {
-                            editor.pattern_name_editing = !editor.pattern_name_editing;
-                        }
-                        Keycode::Return if editor.pattern_name_editing => {
-                            editor.pattern_name_editing = false;
-                        }
-                        Keycode::Backspace if editor.pattern_name_editing => {
-                            editor.handle_backspace();
-                        }
-                        Keycode::Num0 => editor.selected_color_index = 0,
-                        Keycode::Num1 => editor.selected_color_index = 1,
-                        Keycode::Num2 => editor.selected_color_index = 2,
-                        Keycode::Num3 => editor.selected_color_index = 3,
-                        Keycode::Num4 => editor.selected_color_index = 4,
-                        Keycode::Num5 => editor.selected_color_index = 5,
-                        _ => {}
                     }
                 }
                 
                 Event::TextInput { text, .. } if game.state == GameState::LevelEditor => {
-                    editor.handle_text_input(&text);
+                    // Only process text input when editing name
+                    if editor.pattern_name_editing {
+                        editor.handle_text_input(&text);
+                    }
                 }
 
                 Event::MouseMotion { x, y, .. } => {
@@ -342,7 +387,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 editor.show_message(e);
                             }
                         } else if editor.clear_button.is_clicked(adj_x, adj_y) {
-                            editor.clear();
+                            if editor.confirm_clear {
+                                editor.clear();
+                            } else {
+                                editor.request_clear();
+                            }
                         } else if editor.exit_button.is_clicked(adj_x, adj_y) {
                             game.state = GameState::Paused;
                             menu.state = MenuState::Main;
