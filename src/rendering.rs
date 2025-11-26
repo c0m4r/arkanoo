@@ -1692,12 +1692,12 @@ pub fn render_game(
             
             // Calculate alpha for fade effect
             // 0-30: Fade In
-            // 30-150: Hold
-            // 150-180: Fade Out
+            // 30-180: Hold
+            // 180-210: Fade Out
             let alpha = if splash_timer < 30 {
                 (splash_timer as f32 / 30.0 * 255.0) as u8
-            } else if splash_timer > 150 {
-                ((180 - splash_timer) as f32 / 30.0 * 255.0) as u8
+            } else if splash_timer > 180 {
+                ((210 - splash_timer) as f32 / 30.0 * 255.0) as u8
             } else {
                 255
             };
