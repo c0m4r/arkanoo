@@ -57,13 +57,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     };
     
-    // Helper to load font with scaling
-    let load_font = |scale: f32| -> Result<sdl2::ttf::Font, String> {
-        let font_size = (24.0 * scale) as u16;
+    // Helper to load font with fixed size
+    let load_font = || -> Result<sdl2::ttf::Font, String> {
+        let font_size = 24;
         ttf_context.load_font(font_path, font_size).map_err(|e| e.to_string())
     };
 
-    let mut font = load_font(1.0)?;
+    let font = load_font()?;
 
     // Load background image (will be loaded dynamically per level)
     let texture_creator = canvas.texture_creator();
@@ -169,27 +169,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
-                Event::Window { win_event, .. } => {
-                    match win_event {
-                        sdl2::event::WindowEvent::Resized(..) |
-                        sdl2::event::WindowEvent::SizeChanged(..) |
-                        sdl2::event::WindowEvent::Maximized |
-                        sdl2::event::WindowEvent::Restored => {
-                            // Get the current window size
-                            let (w, h) = canvas.window().size();
-                            
-                            // Update resolution to match window size
-                            let scale_x = w as f32 / WINDOW_WIDTH as f32;
-                            let scale_y = h as f32 / WINDOW_HEIGHT as f32;
-                            let _ = canvas.set_scale(scale_x, scale_y);
-                            
-                            // Reload font with new scale
-                            if let Ok(new_font) = load_font(scale_y) {
-                                font = new_font;
-                            }
-                        },
-                        _ => {}
-                    }
+                Event::Window { win_event: sdl2::event::WindowEvent::Resized(..) |
+                                           sdl2::event::WindowEvent::SizeChanged(..) |
+                                           sdl2::event::WindowEvent::Maximized |
+                                           sdl2::event::WindowEvent::Restored, .. } => {
+                    // Get the current window size
+                    let (w, h) = canvas.window().size();
+                    
+                    // Update resolution to match window size
+                    let scale_x = w as f32 / WINDOW_WIDTH as f32;
+                    let scale_y = h as f32 / WINDOW_HEIGHT as f32;
+                    let _ = canvas.set_scale(scale_x, scale_y);
                 }
                 
                 Event::KeyDown { keycode: Some(Keycode::F11), .. } => {
