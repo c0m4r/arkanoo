@@ -521,8 +521,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Update splash screen timer
         if game.state == GameState::SplashScreen {
             splash_timer += 1;
-            // Auto-advance to menu after 3 seconds (210 frames at 60 FPS)
-            if splash_timer >= 210 {
+            // Auto-advance to menu after 3 seconds (270 frames at 60 FPS)
+            if splash_timer >= 270 {
                 game.state = GameState::Paused;
                 menu.state = MenuState::Main;
                 sdl_context.mouse().show_cursor(true);
