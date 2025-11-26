@@ -1414,7 +1414,6 @@ fn draw_animated_background(canvas: &mut Canvas<Window>, level: usize, frame: u6
                         let y = cy + angle.sin() * dist;
                         
                         if x >= 0.0 && x < WINDOW_WIDTH as f32 && y >= 0.0 && y < WINDOW_HEIGHT as f32 {
-                            let size = (dist / 100.0) as u32 + 1;
                             let alpha = (dist / 2.0).min(255.0) as u8;
                             
                             // Color shift based on speed (Redshift/Blueshift)

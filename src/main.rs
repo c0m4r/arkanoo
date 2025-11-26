@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Hide cursor and lock it to the window
     sdl_context.mouse().show_cursor(false);
-    let _ = canvas.window_mut().set_grab(true);
+    canvas.window_mut().set_grab(true);
     
     let mut event_pump = sdl_context.event_pump()?;
 
@@ -111,17 +111,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // FPS tracking
     let mut frame_times: Vec<std::time::Instant> = Vec::new();
-    let mut current_fps = 60.0;
+    let mut current_fps;
     
     // Cache background and track current level
     let mut current_level = game.current_level;
     let mut background = texture_creator
-        .load_texture(&game.get_background_path())
+        .load_texture(game.get_background_path())
         .ok();
     
     // Editor background
     let mut editor_background = texture_creator
-        .load_texture(&editor.get_background_path())
+        .load_texture(editor.get_background_path())
         .ok();
 
     let target_frame_time = Duration::from_micros(1_000_000 / 60);
@@ -133,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if game.current_level != current_level {
             current_level = game.current_level;
             background = texture_creator
-                .load_texture(&game.get_background_path())
+                .load_texture(game.get_background_path())
                 .ok();
         }
 
@@ -152,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             game.state = GameState::Paused;
                             menu.state = MenuState::Main;
                             sdl_context.mouse().show_cursor(true);
-                            let _ = canvas.window_mut().set_grab(false);
+                            canvas.window_mut().set_grab(false);
                         }
                     } else if game.state != GameState::GameOver && game.state != GameState::Victory {
                         game.toggle_pause();
@@ -161,10 +161,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Show/Hide cursor based on pause state
                         if game.state == GameState::Paused {
                             sdl_context.mouse().show_cursor(true);
-                            let _ = canvas.window_mut().set_grab(false);
+                            canvas.window_mut().set_grab(false);
                         } else {
                             sdl_context.mouse().show_cursor(false);
-                            let _ = canvas.window_mut().set_grab(true);
+                            canvas.window_mut().set_grab(true);
                         }
                     }
                 }
@@ -201,7 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         menu.state = MenuState::Main;
                         // Ensure cursor is hidden/grabbed when restarting
                         sdl_context.mouse().show_cursor(false);
-                        let _ = canvas.window_mut().set_grab(true);
+                        canvas.window_mut().set_grab(true);
                     }
                 }
                 
@@ -211,7 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         game.state = GameState::Paused;
                         menu.state = MenuState::Main;
                         sdl_context.mouse().show_cursor(true);
-                        let _ = canvas.window_mut().set_grab(false);
+                        canvas.window_mut().set_grab(false);
                     } else if game.state == GameState::Victory {
                         game.start_next_level(); // Starts level 10 (Infinite Mode)
                     } else if game.state == GameState::LevelTransition {
@@ -379,7 +379,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         game.state = GameState::Paused;
                         menu.state = MenuState::Main;
                         sdl_context.mouse().show_cursor(true);
-                        let _ = canvas.window_mut().set_grab(false);
+                        canvas.window_mut().set_grab(false);
                     } else if game.state == GameState::LevelEditor {
                         // Check for button clicks
                         if editor.save_button.is_clicked(adj_x, adj_y) {
@@ -398,12 +398,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else if editor.bg_next_button.is_clicked(adj_x, adj_y) {
                             editor.next_background();
                             editor_background = texture_creator
-                                .load_texture(&editor.get_background_path())
+                                .load_texture(editor.get_background_path())
                                 .ok();
                         } else if editor.bg_prev_button.is_clicked(adj_x, adj_y) {
                             editor.prev_background();
                             editor_background = texture_creator
-                                .load_texture(&editor.get_background_path())
+                                .load_texture(editor.get_background_path())
                                 .ok();
                         } else {
                             // Check color picker clicks
@@ -428,14 +428,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 game.toggle_pause();
                                 // Hide cursor when resuming
                                 sdl_context.mouse().show_cursor(false);
-                                let _ = canvas.window_mut().set_grab(true);
+                                canvas.window_mut().set_grab(true);
                             }
                             MenuAction::Restart => {
                                 game.reset();
                                 // Music continues playing, no change needed
                                 // Hide cursor when restarting
                                 sdl_context.mouse().show_cursor(false);
-                                let _ = canvas.window_mut().set_grab(true);
+                                canvas.window_mut().set_grab(true);
                             }
                             MenuAction::Quit => {
                                 break 'running;
@@ -530,7 +530,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 game.state = GameState::Paused;
                 menu.state = MenuState::Main;
                 sdl_context.mouse().show_cursor(true);
-                let _ = canvas.window_mut().set_grab(false);
+                canvas.window_mut().set_grab(false);
             }
         }
 

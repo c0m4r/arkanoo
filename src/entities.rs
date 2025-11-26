@@ -7,7 +7,6 @@ pub const PADDLE_WIDTH: i32 = 140;
 pub const PADDLE_HEIGHT: i32 = 22;
 pub const PADDLE_SPEED: i32 = 18;
 pub const BALL_SIZE: i32 = 12;
-pub const BALL_SPEED: i32 = 6;
 pub const BLOCK_WIDTH: i32 = 60;
 pub const BLOCK_HEIGHT: i32 = 20;
 pub const BLOCK_ROWS: usize = 10;
@@ -539,9 +538,8 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                         9 => {
                             let pattern_x = col % 4;
                             let pattern_y = row % 4;
-                            !(pattern_x == 1 && pattern_y == 1) && 
-                            !(pattern_x == 2 && pattern_y == 2) &&
-                            !((col + row) % 7 == 0)
+                            !(pattern_x == 1 && pattern_y == 1 || pattern_x == 2 && pattern_y == 2) &&
+                            ((col + row) % 7 != 0)
                         },
                         _ => true,
                     }
