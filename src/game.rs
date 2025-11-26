@@ -9,6 +9,7 @@ pub enum GameState {
     GameOver,
     Victory,
     LevelTransition,
+    LevelEditor,
 }
 
 pub struct Game {
@@ -661,6 +662,7 @@ impl Game {
             GameState::Victory => GameState::Victory,
             GameState::LevelTransition => GameState::LevelTransition,
             GameState::SplashScreen => GameState::SplashScreen,
+            GameState::LevelEditor => GameState::LevelEditor,
         };
     }
 

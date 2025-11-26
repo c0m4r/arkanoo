@@ -3,6 +3,7 @@ mod game;
 mod rendering;
 mod audio;
 mod menu;
+mod editor;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -12,9 +13,10 @@ use std::time::Duration;
 
 use crate::entities::{WINDOW_WIDTH, WINDOW_HEIGHT};
 use crate::game::{Game, GameState};
-use crate::rendering::render_game;
+use crate::rendering::{render_game, render_editor};
 use crate::audio::AudioManager;
 use crate::menu::{Menu, MenuState, MenuAction, handle_menu_click};
+use crate::editor::LevelEditor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
@@ -90,9 +92,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start background music
     audio_manager.play_music();
 
-    // Create game and menu
+    // Create game, menu, and editor
     let mut game = Game::new();
     let mut menu = Menu::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut editor = LevelEditor::new();
     menu.music_slider.set_value(audio_manager.get_music_volume());
     menu.sfx_slider.set_value(audio_manager.get_sfx_volume());
     menu.set_music_muted(audio_manager.is_music_muted());
@@ -115,6 +118,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut background = texture_creator
         .load_texture(&game.get_background_path())
         .ok();
+    
+    // Editor background
+    let mut editor_background = texture_creator
+        .load_texture(&editor.get_background_path())
+        .ok();
 
     let target_frame_time = Duration::from_micros(1_000_000 / 60);
 
@@ -135,7 +143,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Event::Quit { .. } => break 'running,
                 
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    if game.state != GameState::GameOver && game.state != GameState::Victory {
+                    if game.state == GameState::LevelEditor {
+                        // Exit editor, return to menu
+                        game.state = GameState::Paused;
+                        menu.state = MenuState::Main;
+                        sdl_context.mouse().show_cursor(true);
+                        let _ = canvas.window_mut().set_grab(false);
+                    } else if game.state != GameState::GameOver && game.state != GameState::Victory {
                         game.toggle_pause();
                         menu.state = MenuState::Main;
                         
@@ -238,6 +252,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
+                
+                // Level editor keyboard shortcuts
+                Event::KeyDown { keycode: Some(key), .. } if game.state == GameState::LevelEditor => {
+                    match key {
+                        Keycode::S => {
+                            if let Err(e) = editor.save_pattern() {
+                                editor.show_message(e);
+                            }
+                        }
+                        Keycode::C => {
+                            editor.clear();
+                        }
+                        Keycode::N => {
+                            editor.pattern_name_editing = !editor.pattern_name_editing;
+                        }
+                        Keycode::Return if editor.pattern_name_editing => {
+                            editor.pattern_name_editing = false;
+                        }
+                        Keycode::Backspace if editor.pattern_name_editing => {
+                            editor.handle_backspace();
+                        }
+                        Keycode::Num0 => editor.selected_color_index = 0,
+                        Keycode::Num1 => editor.selected_color_index = 1,
+                        Keycode::Num2 => editor.selected_color_index = 2,
+                        Keycode::Num3 => editor.selected_color_index = 3,
+                        Keycode::Num4 => editor.selected_color_index = 4,
+                        Keycode::Num5 => editor.selected_color_index = 5,
+                        _ => {}
+                    }
+                }
+                
+                Event::TextInput { text, .. } if game.state == GameState::LevelEditor => {
+                    editor.handle_text_input(&text);
+                }
 
                 Event::MouseMotion { x, y, .. } => {
                     // Adjust mouse coordinates for scaling
@@ -245,7 +293,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let adj_x = (x as f32 / scale_x) as i32;
                     let adj_y = (y as f32 / scale_y) as i32;
 
-                    if game.state == GameState::Paused {
+                    if game.state == GameState::LevelEditor {
+                        editor.update_hover(adj_x, adj_y);
+                        // Handle drag if button is down
+                        if mouse_down || editor.is_dragging_right {
+                            editor.update_drag(adj_x, adj_y);
+                        }
+                    } else if game.state == GameState::Paused {
                         menu.update_hover(adj_x, adj_y);
                         menu.update_slider(adj_x, adj_y, mouse_down);
                         
@@ -281,6 +335,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         menu.state = MenuState::Main;
                         sdl_context.mouse().show_cursor(true);
                         let _ = canvas.window_mut().set_grab(false);
+                    } else if game.state == GameState::LevelEditor {
+                        // Check for button clicks
+                        if editor.save_button.is_clicked(adj_x, adj_y) {
+                            if let Err(e) = editor.save_pattern() {
+                                editor.show_message(e);
+                            }
+                        } else if editor.clear_button.is_clicked(adj_x, adj_y) {
+                            editor.clear();
+                        } else if editor.exit_button.is_clicked(adj_x, adj_y) {
+                            game.state = GameState::Paused;
+                            menu.state = MenuState::Main;
+                        } else if editor.bg_next_button.is_clicked(adj_x, adj_y) {
+                            editor.next_background();
+                            editor_background = texture_creator
+                                .load_texture(&editor.get_background_path())
+                                .ok();
+                        } else if editor.bg_prev_button.is_clicked(adj_x, adj_y) {
+                            editor.prev_background();
+                            editor_background = texture_creator
+                                .load_texture(&editor.get_background_path())
+                                .ok();
+                        } else {
+                            // Check color picker clicks
+                            let mut clicked_color = false;
+                            for btn in &editor.color_buttons {
+                                if btn.is_clicked(adj_x, adj_y) {
+                                    editor.selected_color_index = btn.color_index;
+                                    clicked_color = true;
+                                    break;
+                                }
+                            }
+                            
+                            if !clicked_color {
+                                // Start drag drawing
+                                editor.start_drag_left(adj_x, adj_y);
+                            }
+                        }
                     } else if game.state == GameState::Paused {
                         let action = handle_menu_click(&menu, adj_x, adj_y);
                         match action {
@@ -327,6 +418,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 game.toggle_gravity_mode();
                                 menu.set_gravity_mode(game.gravity_mode);
                             }
+                            MenuAction::EnterLevelEditor => {
+                                game.state = GameState::LevelEditor;
+                                // Keep cursor shown and grabbed false
+                            }
                             MenuAction::None => {}
                         }
                     } else if game.state == GameState::LevelTransition {
@@ -342,6 +437,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Event::MouseButtonUp { mouse_btn: MouseButton::Left, .. } => {
                     mouse_down = false;
+                    if game.state == GameState::LevelEditor {
+                        editor.stop_drag();
+                    }
+                }
+                
+                Event::MouseButtonDown { mouse_btn: MouseButton::Right, x, y, .. } => {
+                    if game.state == GameState::LevelEditor {
+                        // Right-click to start drag erase
+                        let (scale_x, scale_y) = canvas.scale();
+                        let adj_x = (x as f32 / scale_x) as i32;
+                        let adj_y = (y as f32 / scale_y) as i32;
+                        editor.start_drag_right(adj_x, adj_y);
+                    }
+                }
+                
+                Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } => {
+                    if game.state == GameState::LevelEditor {
+                        editor.stop_drag();
+                    }
                 }
 
                 _ => {}
@@ -383,6 +497,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
             }
         }
+        
+        // Update editor
+        if game.state == GameState::LevelEditor {
+            editor.update();
+        }
 
         // Update audio (for song transitions)
         audio_manager.update();
@@ -394,7 +513,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         current_fps = frame_times.len() as f32;
 
         // Render
-        render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_ref(), &font, current_fps, &mut texture_cache);
+        if game.state == GameState::LevelEditor {
+            render_editor(&mut canvas, &editor, &font, editor_background.as_mut());
+        } else {
+            render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_ref(), &font, current_fps, &mut texture_cache);
+        }
 
         // Target 60 FPS
         let elapsed = frame_start.elapsed();

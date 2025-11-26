@@ -75,6 +75,7 @@ pub struct Menu {
     pub resume_button: Button,
     pub restart_button: Button,
     pub settings_button: Button,
+    pub level_editor_button: Button,
     pub back_button: Button,
     pub quit_button: Button,
     pub music_toggle_button: Button,
@@ -98,11 +99,12 @@ impl Menu {
 
         Menu {
             state: MenuState::Main,
-            resume_button: Button::new(center_x, center_y - 100, 200, 40, "Resume"),
-            restart_button: Button::new(center_x, center_y - 50, 200, 40, "Restart"),
-            gravity_mode_button: Button::new(center_x, center_y, 200, 40, "Gravity Mode"),
-            settings_button: Button::new(center_x, center_y + 50, 200, 40, "Settings"),
-            quit_button: Button::new(center_x, center_y + 100, 200, 40, "Quit"),
+            resume_button: Button::new(center_x, center_y - 125, 200, 40, "Resume"),
+            restart_button: Button::new(center_x, center_y - 75, 200, 40, "Restart"),
+            gravity_mode_button: Button::new(center_x, center_y - 25, 200, 40, "Gravity Mode"),
+            level_editor_button: Button::new(center_x, center_y + 25, 200, 40, "Level Editor"),
+            settings_button: Button::new(center_x, center_y + 75, 200, 40, "Settings"),
+            quit_button: Button::new(center_x, center_y + 125, 200, 40, "Quit"),
             back_button: Button::new(center_x, center_y + 170, 200, 40, "Back"),
             music_toggle_button: Button::new(center_x, center_y - 120, 200, 40, "Music: ON"),
             sfx_toggle_button: Button::new(center_x, center_y - 20, 200, 40, "SFX: ON"),
@@ -124,6 +126,7 @@ impl Menu {
                 self.resume_button.update_hover(mouse_x, mouse_y);
                 self.restart_button.update_hover(mouse_x, mouse_y);
                 self.gravity_mode_button.update_hover(mouse_x, mouse_y);
+                self.level_editor_button.update_hover(mouse_x, mouse_y);
                 self.settings_button.update_hover(mouse_x, mouse_y);
                 self.quit_button.update_hover(mouse_x, mouse_y);
             }
@@ -190,6 +193,7 @@ pub enum MenuAction {
     ToggleSFX,
     ToggleFullscreen,
     ToggleGravity,
+    EnterLevelEditor,
 }
 
 pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction {
@@ -203,6 +207,9 @@ pub fn handle_menu_click(menu: &Menu, mouse_x: i32, mouse_y: i32) -> MenuAction 
             }
             if menu.gravity_mode_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::ToggleGravity;
+            }
+            if menu.level_editor_button.is_clicked(mouse_x, mouse_y) {
+                return MenuAction::EnterLevelEditor;
             }
             if menu.settings_button.is_clicked(mouse_x, mouse_y) {
                 return MenuAction::OpenSettings;

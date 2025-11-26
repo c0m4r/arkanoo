@@ -2342,6 +2342,7 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             render_button(canvas, &menu.resume_button, font);
             render_button(canvas, &menu.restart_button, font);
             render_button(canvas, &menu.gravity_mode_button, font);
+            render_button(canvas, &menu.level_editor_button, font);
             render_button(canvas, &menu.settings_button, font);
             render_button(canvas, &menu.quit_button, font);
         }
@@ -2551,4 +2552,239 @@ fn render_victory_menu(canvas: &mut Canvas<Window>, game: &Game, font: &Font) {
             let _ = canvas.copy(&texture, None, Some(target));
         };
     }
+}
+
+
+/// Render the level editor interface
+pub fn render_editor(
+    canvas: &mut Canvas<Window>,
+    editor: &crate::editor::LevelEditor,
+    font: &Font,
+    background: Option<&mut Texture>,
+) {
+    // Draw background
+    if let Some(bg) = background {
+        canvas.copy(bg, None, None).ok();
+    } else {
+        canvas.set_draw_color(SdlColor::RGB(20, 20, 30));
+        canvas.clear();
+    }
+
+    let total_blocks_width = BLOCK_COLS as i32 * BLOCK_WIDTH;
+    let offset_x = (WINDOW_WIDTH as i32 - total_blocks_width) / 2;
+
+    // Draw grid lines
+    canvas.set_draw_color(SdlColor::RGBA(80, 80, 100, 200));
+    for row in 0..=BLOCK_ROWS {
+        let y = BLOCK_OFFSET_Y + row as i32 * BLOCK_HEIGHT;
+        canvas
+            .draw_line(
+                Point::new(offset_x, y),
+                Point::new(offset_x + total_blocks_width, y),
+            )
+            .ok();
+    }
+    for col in 0..=BLOCK_COLS {
+        let x = offset_x + col as i32 * BLOCK_WIDTH;
+        canvas
+            .draw_line(
+                Point::new(x, BLOCK_OFFSET_Y),
+                Point::new(x, BLOCK_OFFSET_Y + (BLOCK_ROWS as i32 * BLOCK_HEIGHT)),
+            )
+            .ok();
+    }
+
+    // Draw placed blocks
+    for block in &editor.blocks {
+        if block.active {
+            // Draw block fill
+            canvas.set_draw_color(SdlColor::RGB(
+                block.color.r,
+                block.color.g,
+                block.color.b,
+            ));
+            canvas.fill_rect(block.rect()).ok();
+
+            // Draw lighter border
+            let lighter_r = (block.color.r as u16 + 40).min(255) as u8;
+            let lighter_g = (block.color.g as u16 + 40).min(255) as u8;
+            let lighter_b = (block.color.b as u16 + 40).min(255) as u8;
+            canvas.set_draw_color(SdlColor::RGB(lighter_r, lighter_g, lighter_b));
+            canvas.draw_rect(block.rect()).ok();
+        }
+    }
+
+    let texture_creator = canvas.texture_creator();
+
+    // Draw title (top left)
+    let surface = font
+        .render("LEVEL EDITOR")
+        .blended(SdlColor::RGB(255, 255, 255))
+        .ok();
+    if let Some(surface) = surface {
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            let query = texture.query();
+            let target = Rect::new(10, 10, query.width, query.height);
+            canvas.copy(&texture, None, Some(target)).ok();
+        }
+    }
+
+    // Draw pattern name (below title, editable indicator)
+    let pattern_label = if editor.pattern_name_editing {
+        format!("Name: {}_ (Enter to finish)", editor.pattern_name)
+    } else {
+        format!("Name: {} (N to edit)", editor.pattern_name)
+    };
+    let pattern_color = if editor.pattern_name_editing {
+        SdlColor::RGB(100, 255, 100)
+    } else {
+        SdlColor::RGB(200, 200, 200)
+    };
+    let surface = font
+        .render(&pattern_label)
+        .blended(pattern_color)
+        .ok();
+    if let Some(surface) = surface {
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            let query = texture.query();
+            let target = Rect::new(10, 40, query.width, query.height);
+            canvas.copy(&texture, None, Some(target)).ok();
+        }
+    }
+
+    // Draw color picker (top right)
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    
+    // Color picker label
+    let surface = font
+        .render("Colors:")
+        .blended(SdlColor::RGB(200, 200, 200))
+        .ok();
+    if let Some(surface) = surface {
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            let query = texture.query();
+            let target = Rect::new(WINDOW_WIDTH as i32 - 280, 5, query.width, query.height);
+            canvas.copy(&texture, None, Some(target)).ok();
+        }
+    }
+
+    for btn in &editor.color_buttons {
+        let color = BLOCK_COLORS[btn.color_index];
+        let is_selected = btn.color_index == editor.selected_color_index;
+        
+        // Draw color swatch
+        canvas.set_draw_color(SdlColor::RGB(color.r, color.g, color.b));
+        canvas.fill_rect(btn.rect).ok();
+        
+        // Draw border
+        if is_selected {
+            // Thick white border for selected
+            canvas.set_draw_color(SdlColor::RGB(255, 255, 255));
+            for i in 0..3 {
+                let expanded = Rect::new(
+                    btn.rect.x() - i,
+                    btn.rect.y() - i,
+                    btn.rect.width() + (i as u32 * 2),
+                    btn.rect.height() + (i as u32 * 2),
+                );
+                canvas.draw_rect(expanded).ok();
+            }
+        } else if btn.hovered {
+            // Gray border for hovered
+            canvas.set_draw_color(SdlColor::RGB(150, 150, 150));
+            canvas.draw_rect(btn.rect).ok();
+        } else {
+            // Normal border
+            canvas.set_draw_color(SdlColor::RGB(100, 100, 100));
+            canvas.draw_rect(btn.rect).ok();
+        }
+        
+        // Draw color index number
+        let index_text = format!("{}", btn.color_index);
+        let surface = font
+            .render(&index_text)
+            .blended(SdlColor::RGB(0, 0, 0))
+            .ok();
+        if let Some(surface) = surface {
+            if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                let query = texture.query();
+                let target = Rect::new(
+                    btn.rect.x() + (btn.rect.width() as i32 - query.width as i32) / 2,
+                    btn.rect.y() + (btn.rect.height() as i32 - query.height as i32) / 2,
+                    query.width,
+                    query.height,
+                );
+                canvas.copy(&texture, None, Some(target)).ok();
+            }
+        }
+    }
+
+    canvas.set_blend_mode(sdl2::render::BlendMode::None);
+
+    // Draw bottom buttons
+    render_button(canvas, &editor.save_button, font);
+    render_button(canvas, &editor.clear_button, font);
+    render_button(canvas, &editor.exit_button, font);
+    render_button(canvas, &editor.bg_prev_button, font);
+    render_button(canvas, &editor.bg_next_button, font);
+
+    // Draw instructions (bottom center)
+    let instructions = "Drag Left: Draw | Drag Right: Erase | Click colors or 0-5 keys";
+    let surface = font
+        .render(instructions)
+        .blended(SdlColor::RGB(180, 180, 180))
+        .ok();
+    if let Some(surface) = surface {
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            let query = texture.query();
+            let target = Rect::new(
+                WINDOW_WIDTH as i32 / 2 - query.width as i32 / 2,
+                WINDOW_HEIGHT as i32 - 100,
+                query.width,
+                query.height,
+            );
+            canvas.copy(&texture, None, Some(target)).ok();
+        }
+    }
+
+    // Draw background info
+    let bg_text = format!("Background {}/6", editor.current_background);
+    let surface = font
+        .render(&bg_text)
+        .blended(SdlColor::RGB(150, 150, 150))
+        .ok();
+    if let Some(surface) = surface {
+        if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+            let query = texture.query();
+            let target = Rect::new(
+                WINDOW_WIDTH as i32 - query.width as i32 - 10,
+                WINDOW_HEIGHT as i32 - 150,
+                query.width,
+                query.height,
+            );
+            canvas.copy(&texture, None, Some(target)).ok();
+        }
+    }
+
+    // Draw message if present
+    if !editor.message.is_empty() {
+        let surface = font
+            .render(&editor.message)
+            .blended(SdlColor::RGB(100, 255, 100))
+            .ok();
+        if let Some(surface) = surface {
+            if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                let query = texture.query();
+                let target = Rect::new(
+                    WINDOW_WIDTH as i32 / 2 - query.width as i32 / 2,
+                    WINDOW_HEIGHT as i32 - 130,
+                    query.width,
+                    query.height,
+                );
+                canvas.copy(&texture, None, Some(target)).ok();
+            }
+        }
+    }
+
+    canvas.present();
 }

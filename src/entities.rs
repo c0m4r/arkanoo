@@ -549,6 +549,12 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                     // Random patterns for levels 10+ (seeded by level number)
                     use rand::{Rng, SeedableRng};
                     use rand::rngs::StdRng;
+                    use once_cell::sync::Lazy;
+                    
+                    // Lazy-load custom patterns from patterns/ directory
+                    static CUSTOM_PATTERNS: Lazy<Vec<crate::editor::PatternData>> = Lazy::new(|| {
+                        crate::editor::load_all_patterns("patterns")
+                    });
                     
                     // Use multiple entropy sources for better randomization
                     // Add attempt number to seed for retries
@@ -557,8 +563,18 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                         .wrapping_add((level as u64 / 5).wrapping_mul(99999))
                         .wrapping_add((attempt as u64).wrapping_mul(77777));
                     let mut rng = StdRng::seed_from_u64(seed);
-                    let pattern_type = rng.gen_range(0..12); // 12 unique patterns (0-11)
                     
+                    // Total pattern count: 12 procedural + N custom
+                    let total_patterns = 12 + CUSTOM_PATTERNS.len();
+                    let pattern_type = rng.gen_range(0..total_patterns);
+                    
+                    // If custom pattern selected, use it directly
+                    if pattern_type >= 12 && !CUSTOM_PATTERNS.is_empty() {
+                        let custom_idx = pattern_type - 12;
+                        return crate::editor::create_blocks_from_pattern(&CUSTOM_PATTERNS[custom_idx]);
+                    }
+                    
+                    // Otherwise use procedural pattern (0-11)
                     // Re-seed for this specific block position
                     let block_seed = level as u64 * 1000 + row as u64 * 100 + col as u64 + attempt as u64;
                     let mut block_rng = StdRng::seed_from_u64(block_seed);
