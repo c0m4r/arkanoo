@@ -33,6 +33,7 @@ pub struct Game {
     pub portal_active: bool, // Portal activated at 3600 px/s
     pub portal_completion_timer: u64, // Frames since all blocks consumed (for animation delay)
     pub gravity_mode: bool, // Gravity mode enabled (heavier physics, no spin)
+    pub is_test_mode: bool, // Whether we are in editor test mode
 }
 
 #[derive(Clone, Copy)]
@@ -41,6 +42,7 @@ pub enum SoundEffect {
     Oh,
     Load,
     BreakingGlass,
+    Explosion,
 }
 
 impl Game {
@@ -77,6 +79,7 @@ impl Game {
             portal_active: false,
             portal_completion_timer: 0,
             gravity_mode: false,
+            is_test_mode: false,
         }
     }
 
@@ -372,47 +375,119 @@ impl Game {
 
 
             // Block collision
+            let mut explosions = Vec::new();
             for block in &mut self.blocks {
-                if block.active && ball.active && check_collision(ball.rect(), block.rect()) {
-                    block.active = false;
-                    
-                    // Ghost Ball Logic: If ghost mode is active, ball continues through block
-                    // Otherwise, it bounces
-                    if self.paddle.ghost_timer == 0 {
-                        ball.vel_y = -ball.vel_y;
+                if !block.active || !ball.active {
+                    continue;
+                }
+
+                if let Some(overlap) = ball.rect().intersection(block.rect()) {
+                    // Handle block hit based on type
+                    let destroyed = match block.block_type {
+                        BlockType::Undestroyable => {
+                            play_sound(SoundEffect::Bounce); // Metal sound ideally
+                            false
+                        },
+                        BlockType::Ice => {
+                            block.health -= 1;
+                            if block.health == 0 {
+                                true
+                            } else {
+                                play_sound(SoundEffect::BreakingGlass); // Crack sound
+                                false
+                            }
+                        },
+                        BlockType::Explosive => {
+                            true // Explodes immediately
+                        },
+                        BlockType::Normal => {
+                            true
+                        }
+                    };
+
+                    if destroyed {
+                        block.active = false;
                     }
                     
-                    self.score += 10;
-                    play_sound(SoundEffect::Bounce);
+                    // Collision Resolution
+                    // If ghost mode is ON, we pass through EVERYTHING (no bounce).
+                    // Otherwise (ghost mode OFF), we bounce off EVERYTHING (even if destroyed).
+                    let should_bounce = self.paddle.ghost_timer == 0;
+                    
+                    if should_bounce {
+                        // Determine collision side based on overlap dimensions
+                        // Smaller overlap dimension indicates the axis of collision
+                        if overlap.width() < overlap.height() {
+                            // Horizontal Collision (Side hit)
+                            // Push ball out horizontally
+                            if ball.x + (BALL_SIZE as f32 / 2.0) < block.x as f32 + (BLOCK_WIDTH as f32 / 2.0) {
+                                // Hit from left
+                                ball.x -= overlap.width() as f32;
+                            } else {
+                                // Hit from right
+                                ball.x += overlap.width() as f32;
+                            }
+                            ball.vel_x = -ball.vel_x;
+                        } else {
+                            // Vertical Collision (Top/Bottom hit)
+                            // Push ball out vertically
+                            if ball.y + (BALL_SIZE as f32 / 2.0) < block.y as f32 + (BLOCK_HEIGHT as f32 / 2.0) {
+                                // Hit from top
+                                ball.y -= overlap.height() as f32;
+                            } else {
+                                // Hit from bottom
+                                ball.y += overlap.height() as f32;
+                            }
+                            ball.vel_y = -ball.vel_y;
+                        }
+                    }
+                    
+                    if destroyed {
+                        self.score += 10;
+                        play_sound(SoundEffect::Bounce);
 
-                    // Queue particles to spawn
-                    particles_to_spawn.push((
-                        block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
-                        block.y as f32 + BLOCK_HEIGHT as f32 / 2.0,
-                        block.color,
-                    ));
+                        // Queue particles to spawn
+                        particles_to_spawn.push((
+                            block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
+                            block.y as f32 + BLOCK_HEIGHT as f32 / 2.0,
+                            block.color,
+                        ));
+                        
+                        // Handle Explosion
+                        if block.block_type == BlockType::Explosive {
+                             // Explosion radius logic (2 blocks radius approx 120px)
+                            let explosion_center = (
+                                block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
+                                block.y as f32 + BLOCK_HEIGHT as f32 / 2.0,
+                            );
+                            explosions.push(explosion_center);
+                        }
+                    }
 
                     // Random bonus drop (15% chance) with 1-second cooldown
-                    let mut rng = rand::thread_rng();
-                    let cooldown_frames = 60; // 1 seconds at 60 FPS
-                    
-                    if rng.gen::<f32>() < 0.15 && self.bonus_cooldown >= cooldown_frames {
-                        // Weighted bonus distribution:
-                        // LongPaddle: 50%, ExtraBall: 25%, GhostBall: 15%, Rocket: 10%
-                        let bonus_type = match rng.gen_range(0..100) {
-                            0..=49 => BonusType::LongPaddle,     // 40%
-                            50..=74 => BonusType::ExtraBall,     // 35%
-                            75..=89 => BonusType::GhostBall,     // 15%
-                            90..=99 => BonusType::Rocket,        // 10%
-                            _ => BonusType::LongPaddle,          // Fallback to most common
-                        };
-                        self.bonuses.push(Bonus::new(
-                            block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
-                            block.y as f32,
-                            bonus_type,
-                        ));
-                        // Reset cooldown timer
-                        self.bonus_cooldown = 0;
+                    // Only drop bonuses from destroyed blocks
+                    if destroyed {
+                        let mut rng = rand::thread_rng();
+                        let cooldown_frames = 60; // 1 seconds at 60 FPS
+                        
+                        if rng.gen::<f32>() < 0.15 && self.bonus_cooldown >= cooldown_frames {
+                            // Weighted bonus distribution:
+                            // LongPaddle: 50%, ExtraBall: 25%, GhostBall: 15%, Rocket: 10%
+                            let bonus_type = match rng.gen_range(0..100) {
+                                0..=49 => BonusType::LongPaddle,     // 40%
+                                50..=74 => BonusType::ExtraBall,     // 35%
+                                75..=89 => BonusType::GhostBall,     // 15%
+                                90..=99 => BonusType::Rocket,        // 10%
+                                _ => BonusType::LongPaddle,          // Fallback to most common
+                            };
+                            self.bonuses.push(Bonus::new(
+                                block.x as f32 + BLOCK_WIDTH as f32 / 2.0,
+                                block.y as f32,
+                                bonus_type,
+                            ));
+                            // Reset cooldown timer
+                            self.bonus_cooldown = 0;
+                        }
                     }
                     
                     // If not ghost mode, break after first collision to prevent destroying multiple blocks in one frame
@@ -421,6 +496,41 @@ impl Game {
                         break;
                     }
                 }
+            }
+
+            // Process explosions
+            for (exp_x, exp_y) in explosions {
+                // Explosion radius: 120px (approx 2 blocks)
+                let radius_sq = 60.0 * 60.0;
+                
+                for block in &mut self.blocks {
+                    if !block.active {
+                        continue;
+                    }
+                    
+                    let block_center_x = block.x as f32 + BLOCK_WIDTH as f32 / 2.0;
+                    let block_center_y = block.y as f32 + BLOCK_HEIGHT as f32 / 2.0;
+                    
+                    let dx = block_center_x - exp_x;
+                    let dy = block_center_y - exp_y;
+                    let dist_sq = dx*dx + dy*dy;
+                    
+                    if dist_sq <= radius_sq {
+                        // Destroy block
+                        block.active = false;
+                        self.score += 10;
+                        
+                        // Add particles for destroyed block
+                        particles_to_spawn.push((
+                            block_center_x,
+                            block_center_y,
+                            block.color,
+                        ));
+                    }
+                }
+                
+                // Play explosion sound
+                play_sound(SoundEffect::Explosion);
             }
         }
 
@@ -633,9 +743,9 @@ impl Game {
             }
         }
 
-        // Check if all blocks are destroyed (only if portal is not active)
+        // Check if all destroyable blocks are destroyed (only if portal is not active)
         // If portal is active, it handles the transition after animation
-        if !self.portal_active && self.blocks.iter().all(|block| !block.active) {
+        if !self.portal_active && self.blocks.iter().all(|block| !block.active || block.block_type == BlockType::Undestroyable) {
             self.next_level();
         }
     }

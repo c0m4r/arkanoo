@@ -299,6 +299,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     crate::game::SoundEffect::Oh => audio_manager.play_oh(),
                                     crate::game::SoundEffect::Load => audio_manager.play_load(),
                                     crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+                                    crate::game::SoundEffect::Explosion => audio_manager.play_explosion(),
                                 }
                             }
                         }
@@ -317,14 +318,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 editor.handle_backspace();
                             }
                             Keycode::Escape => {
-                                // Cancel name editing
-                                editor.pattern_name_editing = false;
+                                if editor.pattern_browser_open {
+                                    // Close pattern browser
+                                    editor.pattern_browser_open = false;
+                                } else {
+                                    // Cancel name editing
+                                    editor.pattern_name_editing = false;
+                                }
                             }
                             _ => {} // Ignore all other keys when editing name
                         }
                     } else {
                         // Normal key handling when not editing name
                         match key {
+                            Keycode::Escape => {
+                                if editor.pattern_browser_open {
+                                    // Close pattern browser
+                                    editor.pattern_browser_open = false;
+                                } else if !editor.pattern_name_editing {
+                                    audio_manager.stop_music();
+                                    game.state = GameState::SplashScreen;  
+                                    sdl_context.mouse().show_cursor(true);
+                                    canvas.window_mut().set_grab(false);
+                                }
+                                editor.pattern_name_editing = false;
+                                editor.cancel_clear();
+                            }
                             Keycode::S => {
                                 if let Err(e) = editor.save_pattern() {
                                     editor.show_message(e);
@@ -337,6 +356,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 } else {
                                     // First press requests confirmation
                                     editor.request_clear();
+                                }
+                            }
+                            Keycode::T => {
+                                // Start Quick Game
+                                if !editor.blocks.is_empty() {
+                                    game.state = GameState::Playing;
+                                    // Reset game state but keep blocks
+                                    game.paddle = crate::entities::Paddle::new();
+                                    game.balls = vec![crate::entities::Ball::new(
+                                        game.paddle.x as f32 + game.paddle.width as f32 / 2.0 - crate::entities::BALL_SIZE as f32 / 2.0,
+                                        game.paddle.y as f32 - crate::entities::BALL_SIZE as f32,
+                                    )];
+                                    game.blocks = editor.blocks.clone();
+                                    game.bonuses.clear();
+                                    game.particles.clear();
+                                    game.rockets.clear();
+                                    game.penguin = None;
+                                    game.stolen_heart_position = None;
+                                    game.score = 0;
+                                    game.lives = 3;
+                                    game.lost_life_this_level = false;
+                                    game.portal_active = false;
+                                    game.portal_completion_timer = 0;
+                                    game.max_speed = 0.0;
+                                    game.is_test_mode = true;
+                                    
+                                    // Hide cursor
+                                    sdl_context.mouse().show_cursor(false);
+                                    canvas.window_mut().set_grab(true);
+                                } else {
+                                    editor.show_message("Add blocks first!".to_string());
+                                }
+                            }
+                            Keycode::L => {
+                                // Toggle pattern browser
+                                if !editor.pattern_browser_open {
+                                    editor.discover_patterns();
+                                    editor.pattern_browser_open = true;
+                                } else {
+                                    editor.pattern_browser_open = false;
+                                }
+                                editor.cancel_clear();
+                            }
+                            Keycode::Up => {
+                                if editor.pattern_browser_open && !editor.available_patterns.is_empty()
+                                    && editor.selected_pattern_index > 0 {
+                                    editor.selected_pattern_index -= 1;
+                                }
+                            }
+                            Keycode::Down => {
+                                if editor.pattern_browser_open && !editor.available_patterns.is_empty()
+                                    && editor.selected_pattern_index < editor.available_patterns.len() - 1 {
+                                    editor.selected_pattern_index += 1;
+                                }
+                            }
+                            Keycode::Return => {
+                                if editor.pattern_browser_open && !editor.available_patterns.is_empty() {
+                                    if let Some(pattern_name) = editor.available_patterns.get(editor.selected_pattern_index) {
+                                        let pattern_name_clone = pattern_name.clone();
+                                        let _ = editor.load_pattern(&pattern_name_clone);
+                                        editor.pattern_browser_open = false;
+                                    }
                                 }
                             }
                             Keycode::N => {
@@ -367,6 +448,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 editor.selected_color_index = 5;
                                 editor.cancel_clear();
                             }
+                            Keycode::Num6 => {
+                                editor.selected_color_index = 6; // Ice
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num7 => {
+                                editor.selected_color_index = 7; // Explosive
+                                editor.cancel_clear();
+                            }
+                            Keycode::Num8 => {
+                                editor.selected_color_index = 8; // Undestroyable
+                                editor.cancel_clear();
+                            }
                             _ => {}
                         }
                     }
@@ -387,6 +480,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     if game.state == GameState::LevelEditor {
                         editor.update_hover(adj_x, adj_y);
+                        
+                        // Update pattern browser hover
+                        if editor.pattern_browser_open {
+                            let browser_width = 600;
+                            let browser_height = 500;
+                            let browser_x = (crate::entities::WINDOW_WIDTH as i32 - browser_width) / 2;
+                            let browser_y = (crate::entities::WINDOW_HEIGHT as i32 - browser_height) / 2;
+                            let list_y_start = browser_y + 60;
+                            let item_height = 35;
+                            let max_visible = 10;
+                            
+                            for (i, _) in editor.available_patterns.iter().take(max_visible).enumerate() {
+                                let item_y = list_y_start + (i as i32 * item_height);
+                                let item_rect = sdl2::rect::Rect::new(
+                                    browser_x + 20,
+                                    item_y,
+                                    (browser_width - 40) as u32,
+                                    (item_height - 5) as u32,
+                                );
+                                
+                                if item_rect.contains_point((adj_x, adj_y)) {
+                                    editor.selected_pattern_index = i;
+                                    break;
+                                }
+                            }
+                        }
+                        
                         // Handle drag if button is down
                         if mouse_down || editor.is_dragging_right {
                             editor.update_drag(adj_x, adj_y);
@@ -438,6 +558,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 editor.clear();
                             } else {
                                 editor.request_clear();
+                            }
+                        } else if editor.test_button.is_clicked(adj_x, adj_y) {
+                            // Start Quick Game
+                            if !editor.blocks.is_empty() {
+                                game.state = GameState::Playing;
+                                // Reset game state but keep blocks
+                                game.paddle = crate::entities::Paddle::new();
+                                game.balls = vec![crate::entities::Ball::new(
+                                    game.paddle.x as f32 + game.paddle.width as f32 / 2.0 - crate::entities::BALL_SIZE as f32 / 2.0,
+                                    game.paddle.y as f32 - crate::entities::BALL_SIZE as f32,
+                                )];
+                                game.blocks = editor.blocks.clone();
+                                game.bonuses.clear();
+                                game.particles.clear();
+                                game.rockets.clear();
+                                game.penguin = None;
+                                game.stolen_heart_position = None;
+                                game.score = 0;
+                                game.lives = 3;
+                                game.lost_life_this_level = false;
+                                game.portal_active = false;
+                                game.portal_completion_timer = 0;
+                                game.max_speed = 0.0;
+                                game.is_test_mode = true;
+                                
+                                // Hide cursor
+                                sdl_context.mouse().show_cursor(false);
+                                canvas.window_mut().set_grab(true);
+                            } else {
+                                editor.show_message("Add blocks first!".to_string());
+                            }
+                        } else if editor.load_button.is_clicked(adj_x, adj_y) {
+                            // Toggle pattern browser
+                            if !editor.pattern_browser_open {
+                                editor.discover_patterns();
+                                editor.pattern_browser_open = true;
+                            } else {
+                                editor.pattern_browser_open = false;
+                            }
+                        } else if editor.pattern_browser_open {
+                            // Handle pattern browser clicks
+                            let browser_width = 600;
+                            let browser_height = 500;
+                            let browser_x = (crate::entities::WINDOW_WIDTH as i32 - browser_width) / 2;
+                            let browser_y = (crate::entities::WINDOW_HEIGHT as i32 - browser_height) / 2;
+                            let list_y_start = browser_y + 60;
+                            let item_height = 35;
+                            let max_visible = 10;
+                            
+                            for (i, pattern_name) in editor.available_patterns.iter().take(max_visible).enumerate() {
+                                let item_y = list_y_start + (i as i32 * item_height);
+                                let item_rect = sdl2::rect::Rect::new(
+                                    browser_x + 20,
+                                    item_y,
+                                    (browser_width - 40) as u32,
+                                    (item_height - 5) as u32,
+                                );
+                                
+                                if item_rect.contains_point((adj_x, adj_y)) {
+                                    let pattern_name_clone = pattern_name.clone();
+                                    let _ = editor.load_pattern(&pattern_name_clone);
+                                    editor.pattern_browser_open = false;
+                                    break;
+                                }
                             }
                         } else if editor.exit_button.is_clicked(adj_x, adj_y) {
                             game.state = GameState::Paused;
@@ -619,12 +803,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut sound_to_play = None;
         game.update(&mut |effect| sound_to_play = Some(effect));
         
+        // Check for test mode completion
+        if game.is_test_mode && (game.state == GameState::GameOver || game.state == GameState::Victory || game.state == GameState::LevelTransition) {
+            // Return to editor
+            game.state = GameState::LevelEditor;
+            game.is_test_mode = false;
+            
+            // Show cursor
+            sdl_context.mouse().show_cursor(true);
+            canvas.window_mut().set_grab(false);
+        }
+        
         if let Some(effect) = sound_to_play {
             match effect {
                 crate::game::SoundEffect::Bounce => audio_manager.play_bounce(),
                 crate::game::SoundEffect::Oh => audio_manager.play_oh(),
                 crate::game::SoundEffect::Load => audio_manager.play_load(),
                 crate::game::SoundEffect::BreakingGlass => audio_manager.play_breaking_glass(),
+                crate::game::SoundEffect::Explosion => audio_manager.play_explosion(),
             }
         }
         
@@ -644,7 +840,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Render
         if game.state == GameState::LevelEditor {
-            render_editor(&mut canvas, &editor, &font, editor_background.as_mut());
+            render_editor(&mut canvas, &editor, &font, editor_background.as_mut(), &texture_cache);
         } else {
             render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_mut(), &font, current_fps, splash_timer, &mut texture_cache);
         }

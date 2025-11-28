@@ -448,9 +448,193 @@ fn draw_heart(canvas: &mut Canvas<Window>, cx: i32, cy: i32, size: i32) {
 }
 
 /// Draw block with "eye candy" aesthetics (3D bevel, metallic shine)
-fn draw_block_with_gradient(canvas: &mut Canvas<Window>, block: &Block, cache: &TextureCache) {
-    let color_idx = BLOCK_COLORS.iter().position(|&c| c.r == block.color.r && c.g == block.color.g && c.b == block.color.b).unwrap_or(0);
-    let _ = canvas.copy(&cache.blocks[color_idx], None, Some(block.rect()));
+fn draw_block_with_gradient(canvas: &mut Canvas<Window>, block: &Block, cache: &TextureCache, frame_count: u64) {
+    match block.block_type {
+        BlockType::Ice => {
+            // Ice Block: Realistic Ice Effect
+            // Base: Semi-transparent Cyan/White
+            canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            
+            // Pulsing inner glow
+            let pulse = (frame_count as f32 * 0.05).sin() * 20.0;
+            let alpha = (180.0 + pulse) as u8;
+            
+            // Fill
+            canvas.set_draw_color(SdlColor::RGBA(200, 240, 255, alpha));
+            let _ = canvas.fill_rect(block.rect());
+            
+            // Icy texture / Glint
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 150));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x + BLOCK_WIDTH, block.y));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x, block.y + BLOCK_HEIGHT));
+            
+            // Random-looking internal refraction lines (static based on position)
+            let seed = (block.x * block.y) as u64;
+            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+            use rand::{Rng, SeedableRng};
+            
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 80));
+            for _ in 0..3 {
+                let x1 = block.x + rng.gen_range(5..BLOCK_WIDTH-5);
+                let y1 = block.y + rng.gen_range(5..BLOCK_HEIGHT-5);
+                let x2 = block.x + rng.gen_range(5..BLOCK_WIDTH-5);
+                let y2 = block.y + rng.gen_range(5..BLOCK_HEIGHT-5);
+                let _ = canvas.draw_line(Point::new(x1, y1), Point::new(x2, y2));
+            }
+
+            // Cracks if damaged (Real crack effect)
+            if block.health < block.max_health {
+                canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 220));
+                let bx = block.x;
+                let by = block.y;
+                let w = BLOCK_WIDTH;
+                let h = BLOCK_HEIGHT;
+                
+                // Main crack
+                let cx = bx + w / 2;
+                let cy = by + h / 2;
+                
+                // Radiating cracks
+                let _ = canvas.draw_line(Point::new(cx, cy), Point::new(bx + 5, by + 5));
+                let _ = canvas.draw_line(Point::new(cx, cy), Point::new(bx + w - 5, by + h - 8));
+                let _ = canvas.draw_line(Point::new(cx, cy), Point::new(bx + 10, by + h - 2));
+                
+                // Branching cracks
+                let _ = canvas.draw_line(Point::new(bx + 5, by + 5), Point::new(bx, by + 15));
+                let _ = canvas.draw_line(Point::new(bx + w - 5, by + h - 8), Point::new(bx + w, by + h - 15));
+            }
+            
+            // Moving shine effect
+            let shine_speed = 2.0;
+            let total_width = BLOCK_WIDTH + BLOCK_HEIGHT + 40;
+            let shine_pos = (frame_count as f32 * shine_speed) as i32 % total_width;
+            let shine_offset = shine_pos - BLOCK_HEIGHT;
+            
+            canvas.set_clip_rect(block.rect());
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 150));
+            // Draw diagonal band
+            for i in 0..10 {
+                let p1 = Point::new(block.x + shine_offset + i, block.y + BLOCK_HEIGHT);
+                let p2 = Point::new(block.x + shine_offset + 20 + i, block.y);
+                let _ = canvas.draw_line(p1, p2);
+            }
+            canvas.set_clip_rect(None);
+            
+            canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        },
+        BlockType::Explosive => {
+            // Explosive Block: Real Fire Effect
+            // We can't do a full particle system per block here easily without state,
+            // but we can simulate it with time-based noise.
+            
+
+            
+            canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            
+            // Procedural fire pixels
+
+            // Lava Lamp Effect: Slow, undulating color shift
+            // Base color: Red/Orange
+            let time = frame_count as f64 * 0.05; // Slow speed
+            
+            // Modulate red and green channels for a pulsing magma look
+            let r_offset = (time.sin() * 20.0) as u8;
+            let g_offset = (time.cos() * 30.0) as u8;
+            
+            let r = 220u8.saturating_add(r_offset);
+            let g = 80u8.saturating_add(g_offset);
+            let b = 0;
+            
+            canvas.set_draw_color(SdlColor::RGB(r, g, b));
+            canvas.fill_rect(block.rect()).ok();
+            
+            // Inner "blob" that moves slightly
+            let blob_offset_y = (time * 1.5).sin() * 5.0;
+            let blob_rect = Rect::new(
+                block.x + 10, 
+                block.y + 10 + blob_offset_y as i32, 
+                (BLOCK_WIDTH - 20) as u32, 
+                (BLOCK_HEIGHT - 20) as u32
+            );
+            canvas.set_draw_color(SdlColor::RGB(255, 150, 50)); // Brighter orange core
+            canvas.fill_rect(blob_rect).ok();
+
+            // Glass overlay (Fire behind glass effect)
+            // Draw a semi-transparent glossy layer on top
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 40));
+            let _ = canvas.fill_rect(Rect::new(block.x, block.y, BLOCK_WIDTH as u32, (BLOCK_HEIGHT/2) as u32));
+            
+            // Stronger shine on top edge
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 180));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x + BLOCK_WIDTH, block.y));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x, block.y + BLOCK_HEIGHT));
+            
+            // Glass reflection diagonal (Shiny thingy)
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 80));
+            let _ = canvas.draw_line(Point::new(block.x, block.y + BLOCK_HEIGHT), Point::new(block.x + 20, block.y));
+            let _ = canvas.draw_line(Point::new(block.x + 5, block.y + BLOCK_HEIGHT), Point::new(block.x + 25, block.y));
+            
+            // Moving shine effect (same as Ice block but maybe slower/different?)
+            // Let's keep it consistent or slightly different. User asked for "this shiny thingy as in ice blocks"
+            let shine_speed = 1.5; // Slightly slower than ice
+            let total_width = BLOCK_WIDTH + BLOCK_HEIGHT + 40;
+            let shine_pos = (frame_count as f32 * shine_speed) as i32 % total_width;
+            let shine_offset = shine_pos - BLOCK_HEIGHT;
+            
+            canvas.set_clip_rect(block.rect());
+            canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 100)); // Slightly less intense than ice
+            // Draw diagonal band
+            for i in 0..8 {
+                let p1 = Point::new(block.x + shine_offset + i, block.y + BLOCK_HEIGHT);
+                let p2 = Point::new(block.x + shine_offset + 20 + i, block.y);
+                let _ = canvas.draw_line(p1, p2);
+            }
+            canvas.set_clip_rect(None);
+            
+            canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        },
+        BlockType::Undestroyable => {
+            // Undestroyable Block: Graphite (Dark Metallic Grey)
+            // Base
+            canvas.set_draw_color(SdlColor::RGB(30, 35, 40)); // Dark Graphite
+            let _ = canvas.fill_rect(block.rect());
+            
+            // Metallic shine (diagonal)
+            canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            for i in 0..BLOCK_WIDTH + BLOCK_HEIGHT {
+                if i % 10 == 0 {
+                    canvas.set_draw_color(SdlColor::RGBA(255, 255, 255, 30));
+                    let start_x = block.x + i - BLOCK_HEIGHT;
+                    let start_y = block.y + BLOCK_HEIGHT;
+                    let end_x = block.x + i;
+                    let end_y = block.y;
+                    let _ = canvas.draw_line(Point::new(start_x, start_y), Point::new(end_x, end_y));
+                }
+            }
+            
+            // Rivets (Steel color)
+            canvas.set_draw_color(SdlColor::RGB(150, 150, 160));
+            let _ = canvas.fill_rect(Rect::new(block.x + 2, block.y + 2, 3, 3));
+            let _ = canvas.fill_rect(Rect::new(block.x + BLOCK_WIDTH - 5, block.y + 2, 3, 3));
+            let _ = canvas.fill_rect(Rect::new(block.x + 2, block.y + BLOCK_HEIGHT - 5, 3, 3));
+            let _ = canvas.fill_rect(Rect::new(block.x + BLOCK_WIDTH - 5, block.y + BLOCK_HEIGHT - 5, 3, 3));
+            
+            // Bevel edge
+            canvas.set_draw_color(SdlColor::RGBA(200, 200, 210, 100));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x + BLOCK_WIDTH, block.y));
+            let _ = canvas.draw_line(Point::new(block.x, block.y), Point::new(block.x, block.y + BLOCK_HEIGHT));
+            
+            canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 150));
+            let _ = canvas.draw_line(Point::new(block.x, block.y + BLOCK_HEIGHT - 1), Point::new(block.x + BLOCK_WIDTH, block.y + BLOCK_HEIGHT - 1));
+            let _ = canvas.draw_line(Point::new(block.x + BLOCK_WIDTH - 1, block.y), Point::new(block.x + BLOCK_WIDTH - 1, block.y + BLOCK_HEIGHT));
+            
+            canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        },
+        BlockType::Normal => {
+            let color_idx = BLOCK_COLORS.iter().position(|&c| c.r == block.color.r && c.g == block.color.g && c.b == block.color.b).unwrap_or(0);
+            let _ = canvas.copy(&cache.blocks[color_idx], None, Some(block.rect()));
+        }
+    }
 }
 
 /// Draw paddle with enhanced sci-fi/metallic aesthetics and rounded corners
@@ -1735,7 +1919,7 @@ pub fn render_game(
     // Draw blocks with gradient and glass effects
     for block in &game.blocks {
         if block.active {
-            draw_block_with_gradient(canvas, block, cache);
+            draw_block_with_gradient(canvas, block, cache, game.frame_count);
         }
     }
 
@@ -2074,11 +2258,13 @@ fn render_hud(canvas: &mut Canvas<Window>, game: &Game, heart_texture: Option<&T
 
     
     // Draw level indicator (CENTER TOP)
-    let level_text = if game.current_level <= 9 {
-        format!("Level {}/9", game.current_level)
+    // Level
+    let level_text = if game.is_test_mode {
+        "TEST".to_string()
     } else {
-        format!("Level {}/∞", game.current_level)
+        format!("Level {}", game.current_level)
     };
+    
     if let Ok(surface) = font.render(&level_text).blended(SdlColor::RGB(255, 255, 255)) {
         let texture_creator = canvas.texture_creator();
         if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
@@ -2594,6 +2780,7 @@ pub fn render_editor(
     editor: &crate::editor::LevelEditor,
     font: &Font,
     background: Option<&mut Texture>,
+    cache: &crate::rendering::TextureCache,
 ) {
     // Draw background at full brightness first
     if let Some(bg) = background {
@@ -2633,23 +2820,10 @@ pub fn render_editor(
             .ok();
     }
 
-    // Draw placed blocks
+    // Draw placed blocks using the shared rendering function for consistency
     for block in &editor.blocks {
         if block.active {
-            // Draw block fill
-            canvas.set_draw_color(SdlColor::RGB(
-                block.color.r,
-                block.color.g,
-                block.color.b,
-            ));
-            canvas.fill_rect(block.rect()).ok();
-
-            // Draw lighter border
-            let lighter_r = (block.color.r as u16 + 40).min(255) as u8;
-            let lighter_g = (block.color.g as u16 + 40).min(255) as u8;
-            let lighter_b = (block.color.b as u16 + 40).min(255) as u8;
-            canvas.set_draw_color(SdlColor::RGB(lighter_r, lighter_g, lighter_b));
-            canvas.draw_rect(block.rect()).ok();
+            draw_block_with_gradient(canvas, block, cache, editor.frame_count);
         }
     }
 
@@ -2702,18 +2876,43 @@ pub fn render_editor(
     if let Some(surface) = surface {
         if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
             let query = texture.query();
-            let target = Rect::new(WINDOW_WIDTH as i32 - 280, 5, query.width, query.height);
+            let target = Rect::new(WINDOW_WIDTH as i32 - 520, 25, query.width, query.height);
             canvas.copy(&texture, None, Some(target)).ok();
         }
     }
 
     for btn in &editor.color_buttons {
-        let color = BLOCK_COLORS[btn.color_index];
         let is_selected = btn.color_index == editor.selected_color_index;
         
-        // Draw color swatch
-        canvas.set_draw_color(SdlColor::RGB(color.r, color.g, color.b));
-        canvas.fill_rect(btn.rect).ok();
+        // Determine if this is a special block (6-8) or normal color (0-5)
+        if btn.color_index <= 5 {
+            // Normal color block
+            let color = BLOCK_COLORS[btn.color_index];
+            
+            // Draw color swatch
+            canvas.set_draw_color(SdlColor::RGB(color.r, color.g, color.b));
+            canvas.fill_rect(btn.rect).ok();
+        } else {
+            // Special block - render with identifying visuals
+            match btn.color_index {
+                6 => {
+                    // Ice block - cyan/white
+                    canvas.set_draw_color(SdlColor::RGB(200, 240, 255));
+                    canvas.fill_rect(btn.rect).ok();
+                }
+                7 => {
+                    // Explosive block - red/orange
+                    canvas.set_draw_color(SdlColor::RGB(255, 100, 0));
+                    canvas.fill_rect(btn.rect).ok();
+                }
+                8 => {
+                    // Undestroyable block - graphite
+                    canvas.set_draw_color(SdlColor::RGB(30, 35, 40));
+                    canvas.fill_rect(btn.rect).ok();
+                }
+                _ => {}
+            }
+        }
         
         // Draw border
         if is_selected {
@@ -2763,9 +2962,97 @@ pub fn render_editor(
     // Draw bottom buttons
     render_button(canvas, &editor.save_button, font);
     render_button(canvas, &editor.clear_button, font);
+    render_button(canvas, &editor.test_button, font);
+    render_button(canvas, &editor.load_button, font);
     render_button(canvas, &editor.exit_button, font);
     render_button(canvas, &editor.bg_prev_button, font);
     render_button(canvas, &editor.bg_next_button, font);
+
+    // Draw pattern browser overlay if open
+    if editor.pattern_browser_open {
+        // Semi-transparent overlay
+        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+        canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 200));
+        canvas.fill_rect(Rect::new(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)).ok();
+        
+        // Browser window
+        let browser_width = 600;
+        let browser_height = 500;
+        let browser_x = (WINDOW_WIDTH as i32 - browser_width) / 2;
+        let browser_y = (WINDOW_HEIGHT as i32 - browser_height) / 2;
+        
+        canvas.set_draw_color(SdlColor::RGB(40, 45, 52));
+        canvas.fill_rect(Rect::new(browser_x, browser_y, browser_width as u32, browser_height as u32)).ok();
+        
+        canvas.set_draw_color(SdlColor::RGB(100, 110, 120));
+        canvas.draw_rect(Rect::new(browser_x, browser_y, browser_width as u32, browser_height as u32)).ok();
+        
+        // Title
+        let title_surface = font.render("Load Pattern").blended(SdlColor::RGB(255, 255, 255)).ok();
+        if let Some(surface) = title_surface {
+            if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                let query = texture.query();
+                let target = Rect::new(
+                    browser_x + (browser_width - query.width as i32) / 2,
+                    browser_y + 15,
+                    query.width,
+                    query.height,
+                );
+                canvas.copy(&texture, None, Some(target)).ok();
+            }
+        }
+        
+        // Pattern list
+        let list_y_start = browser_y + 60;
+        let item_height = 35;
+        let max_visible = 10;
+        
+        for (i, pattern_name) in editor.available_patterns.iter().take(max_visible).enumerate() {
+            let item_y = list_y_start + (i as i32 * item_height);
+            let is_selected = i == editor.selected_pattern_index;
+            
+            // Item background
+            if is_selected {
+                canvas.set_draw_color(SdlColor::RGB(70, 130, 180));
+            } else {
+                canvas.set_draw_color(SdlColor::RGB(55, 60, 68));
+            }
+            canvas.fill_rect(Rect::new(browser_x + 20, item_y, (browser_width - 40) as u32, (item_height - 5) as u32)).ok();
+            
+            // Item text
+            let text_surface = font.render(pattern_name).blended(SdlColor::RGB(255, 255, 255)).ok();
+            if let Some(surface) = text_surface {
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let query = texture.query();
+                    let target = Rect::new(
+                        browser_x + 30,
+                        item_y + (item_height - query.height as i32) / 2,
+                        query.width,
+                        query.height,
+                    );
+                    canvas.copy(&texture, None, Some(target)).ok();
+                }
+            }
+        }
+        
+        // Instructions
+        let inst_text = "Click pattern to load | ESC to cancel";
+        let inst_surface = font.render(inst_text).blended(SdlColor::RGB(180, 180, 180)).ok();
+        if let Some(surface) = inst_surface {
+            if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                let query = texture.query();
+                let target = Rect::new(
+                    browser_x + (browser_width - query.width as i32) / 2,
+                    browser_y + browser_height - 40,
+                    query.width,
+                    query.height,
+                );
+                canvas.copy(&texture, None, Some(target)).ok();
+            }
+        }
+        
+        canvas.set_blend_mode(sdl2::render::BlendMode::None);
+    }
 
     // Draw instructions (bottom center)
     let instructions = "Drag Left: Draw | Drag Right: Erase | Click colors or 0-5 keys";

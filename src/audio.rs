@@ -7,6 +7,7 @@ use rand::Rng;
     oh_sound: Option<Chunk>,
     load_sound: Option<Chunk>,
     breaking_glass_sound: Option<Chunk>,
+    explosion_sound: Option<Chunk>,
     songs: Vec<String>,
     current_song_index: usize,
     music_volume: i32,
@@ -32,6 +33,8 @@ impl AudioManager {
             eprintln!("Warning: Could not load ball.mp3, ball_bounce.mp3, or ball_bounce.wav");
         }
 
+        // Note: audio files must be 44.1kHz
+
         // Load drop-sound-effect-240899.mp3
         let oh_sound = Chunk::from_file(Path::new("assets/drop-sound-effect-240899.mp3")).ok();
         if oh_sound.is_none() {
@@ -49,6 +52,15 @@ impl AudioManager {
         if breaking_glass_sound.is_none() {
             eprintln!("Warning: Could not load assets/breaking-glass.mp3");
         }
+
+        // Load swish-swoosh-woosh-sfx-27-357164.mp3
+        let explosion_sound = match Chunk::from_file(Path::new("assets/swish-swoosh-woosh-sfx-27-357164.mp3")) {
+            Ok(sound) => Some(sound),
+            Err(e) => {
+                eprintln!("Warning: Could not load assets/swish-swoosh-woosh-sfx-27-357164.mp3: {}", e);
+                None
+            }
+        };
 
         // Setup song playlist - dynamically load all .mp3 files from assets directory
         let mut songs = Vec::new();
@@ -93,6 +105,7 @@ impl AudioManager {
             oh_sound,
             load_sound,
             breaking_glass_sound,
+            explosion_sound,
             songs,
             current_song_index,
             music_volume: 64, // Default to 50% volume (max is 128)
@@ -130,6 +143,14 @@ impl AudioManager {
     pub fn play_breaking_glass(&self) {
         if !self.sfx_muted {
             if let Some(ref sound) = self.breaking_glass_sound {
+                let _ = Channel::all().play(sound, 0);
+            }
+        }
+    }
+
+    pub fn play_explosion(&self) {
+        if !self.sfx_muted {
+            if let Some(ref sound) = self.explosion_sound {
                 let _ = Channel::all().play(sound, 0);
             }
         }

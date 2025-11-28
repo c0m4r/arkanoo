@@ -1,5 +1,6 @@
 use sdl2::rect::Rect;
 
+
 /// Game constants
 pub const WINDOW_WIDTH: u32 = 1280;
 pub const WINDOW_HEIGHT: u32 = 720;
@@ -12,6 +13,14 @@ pub const BLOCK_HEIGHT: i32 = 20;
 pub const BLOCK_ROWS: usize = 10;
 pub const BLOCK_COLS: usize = 20;
 pub const BLOCK_OFFSET_Y: i32 = 80;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum BlockType {
+    Normal,
+    Ice,           // 2 hits to destroy
+    Explosive,     // Explodes on impact
+    Undestroyable, // Cannot be destroyed
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum BonusType {
@@ -79,7 +88,13 @@ impl Paddle {
     }
 
     pub fn activate_long_bonus(&mut self) {
-        self.width = self.long_width;
+        if self.width == self.normal_width {
+            let center = self.x + self.width / 2;
+            self.width = self.long_width;
+            self.x = center - self.width / 2;
+            // Clamp to screen
+            self.x = self.x.clamp(0, WINDOW_WIDTH as i32 - self.width);
+        }
         self.bonus_timer = 300; // 5 seconds at 60 FPS
     }
 
@@ -104,7 +119,11 @@ impl Paddle {
         if self.bonus_timer > 0 {
             self.bonus_timer -= 1;
             if self.bonus_timer == 0 {
+                let center = self.x + self.width / 2;
                 self.width = self.normal_width;
+                self.x = center - self.width / 2;
+                // Clamp to screen
+                self.x = self.x.clamp(0, WINDOW_WIDTH as i32 - self.width);
             }
         }
 
@@ -259,20 +278,33 @@ impl Ball {
     }
 }
 
+#[derive(Clone)]
 pub struct Block {
     pub x: i32,
     pub y: i32,
     pub color: Color,
     pub active: bool,
+    pub block_type: BlockType,
+    pub health: u8,
+    pub max_health: u8,
 }
 
 impl Block {
-    pub fn new(x: i32, y: i32, color: Color) -> Self {
+    pub fn new(x: i32, y: i32, color: Color, block_type: BlockType) -> Self {
+        let (health, max_health) = match block_type {
+            BlockType::Ice => (2, 2),
+            BlockType::Undestroyable => (255, 255), // Effectively infinite
+            _ => (1, 1),
+        };
+
         Block {
             x,
             y,
             color,
             active: true,
+            block_type,
+            health,
+            max_health,
         }
     }
 
@@ -498,6 +530,28 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                 let y = BLOCK_OFFSET_Y + row as i32 * BLOCK_HEIGHT;
                 let color = BLOCK_COLORS[row % BLOCK_COLORS.len()];
                 
+                // Determine block type based on level and randomness
+                // Only introduce special blocks for infinite mode (level 10+)
+                let block_type = if level >= 10 {
+                    /* 
+                    // Temporarily disabled special block generation for infinite mode
+                    // as per user request to "bring back previous versions" of patterns
+                    let mut rng = rand::thread_rng();
+                    let chance = rng.gen_range(0..100);
+                    
+                    // Infinite mode: Chance for special blocks
+                    match chance {
+                        0..=4 => BlockType::Explosive,     // 5%
+                        5..=14 => BlockType::Ice,          // 10%
+                        15..=19 => BlockType::Undestroyable, // 5%
+                        _ => BlockType::Normal,
+                    }
+                    */
+                    BlockType::Normal
+                } else {
+                    BlockType::Normal
+                };
+                
                 let should_add = if level <= 9 {
                     // Predefined patterns for levels 1-9
                     match level {
@@ -680,7 +734,7 @@ pub fn create_blocks(level: usize) -> Vec<Block> {
                 };
 
                 if should_add {
-                    blocks.push(Block::new(x, y, color));
+                    blocks.push(Block::new(x, y, color, block_type));
                 }
             }
         }
