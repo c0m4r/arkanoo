@@ -14,7 +14,17 @@ pub struct Settings {
     pub music_muted: bool,
     pub sfx_muted: bool,
     pub gravity_mode: bool,
+    #[serde(default = "default_vsync")]
+    pub vsync: bool,
+    #[serde(default = "default_resolution_width")]
+    pub resolution_width: u32,
+    #[serde(default = "default_resolution_height")]
+    pub resolution_height: u32,
 }
+
+fn default_vsync() -> bool { true }
+fn default_resolution_width() -> u32 { 1280 }
+fn default_resolution_height() -> u32 { 720 }
 
 impl Default for Settings {
     fn default() -> Self {
@@ -27,6 +37,9 @@ impl Default for Settings {
             music_muted: false,
             sfx_muted: false,
             gravity_mode: false,
+            vsync: true,
+            resolution_width: 1280,
+            resolution_height: 720,
         }
     }
 }

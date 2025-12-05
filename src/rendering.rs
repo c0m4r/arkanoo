@@ -1849,6 +1849,7 @@ pub fn render_game(
     game: &Game,
     menu: &Menu,
     background: Option<&mut Texture>,
+    menu_background: Option<&mut Texture>,
     heart_texture: Option<&Texture>,
     splash_texture: Option<&mut Texture>,
     font: &Font,
@@ -1858,22 +1859,11 @@ pub fn render_game(
 ) {
     // Handle splash screen state
     if game.state == GameState::SplashScreen {
-        canvas.set_draw_color(SdlColor::RGB(0, 0, 0));
+        // White background
+        canvas.set_draw_color(SdlColor::RGB(255, 255, 255));
         canvas.clear();
         
         if let Some(splash) = splash_texture {
-            // Get window size
-            let (window_width, window_height) = canvas.output_size().unwrap_or((WINDOW_WIDTH, WINDOW_HEIGHT));
-            
-            // Get splash texture size
-            let query = splash.query();
-            let splash_width = query.width;
-            let splash_height = query.height;
-            
-            // Center the splash image
-            let x = (window_width as i32 - splash_width as i32) / 2;
-            let y = (window_height as i32 - splash_height as i32) / 2;
-            
             // Calculate alpha for fade effect
             // 0-60: Fade In
             // 60-210: Hold
@@ -1889,7 +1879,9 @@ pub fn render_game(
             splash.set_blend_mode(sdl2::render::BlendMode::Blend);
             splash.set_alpha_mod(alpha);
             
-            let target_rect = Rect::new(x, y, splash_width, splash_height);
+            // Use logical window size (WINDOW_WIDTH/HEIGHT) - canvas scaling handles the rest
+            // This ensures proper display at any resolution
+            let target_rect = Rect::new(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
             let _ = canvas.copy(splash, None, Some(target_rect));
         }
         
@@ -2028,7 +2020,7 @@ pub fn render_game(
 
     // Draw menu if paused or game over
     if game.state == GameState::Paused {
-        render_pause_menu(canvas, menu, font);
+        render_pause_menu(canvas, menu, menu_background, font);
     } else if game.state == GameState::GameOver {
         render_game_over_menu(canvas, game, font);
     } else if game.state == GameState::Victory {
@@ -2502,14 +2494,14 @@ fn render_volume_slider(canvas: &mut Canvas<Window>, slider: &VolumeSlider, font
     let _ = canvas.draw_rect(slider.rect);
     canvas.set_blend_mode(sdl2::render::BlendMode::None);
     
-    // Volume text
-    let vol_text = format!("Volume: {}%", (slider.value * 100) / 128);
+    // Volume text (centered inside the slider)
+    let vol_text = format!("{}%", (slider.value * 100) / 128);
     if let Ok(surface) = font.render(&vol_text).blended(SdlColor::RGB(255, 255, 255)) {
         let texture_creator = canvas.texture_creator();
         if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
             let target = Rect::new(
-                slider.rect.x(), 
-                slider.rect.y() - 25, 
+                slider.rect.x() + (slider.rect.width() as i32 - surface.width() as i32) / 2, 
+                slider.rect.y() + (slider.rect.height() as i32 - surface.height() as i32) / 2, 
                 surface.width(), 
                 surface.height()
             );
@@ -2518,7 +2510,12 @@ fn render_volume_slider(canvas: &mut Canvas<Window>, slider: &VolumeSlider, font
     }
 }
 
-fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
+fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, menu_background: Option<&mut Texture>, font: &Font) {
+    // Draw menu background (first level background) if available
+    if let Some(bg) = menu_background {
+        canvas.copy(bg, None, None).ok();
+    }
+    
     // Semi-transparent overlay
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     canvas.set_draw_color(SdlColor::RGBA(0, 0, 0, 150));
@@ -2527,13 +2524,14 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
 
     match menu.state {
         MenuState::Main => {
-            // Title
-            if let Ok(surface) = font.render("PAUSED").blended(SdlColor::RGB(255, 255, 255)) {
+            // Title - show "NEW GAME" if not started, "PAUSED" if paused mid-game
+            let title = if menu.game_started { "PAUSED" } else { "ARKANOO" };
+            if let Ok(surface) = font.render(title).blended(SdlColor::RGB(255, 255, 255)) {
                 let texture_creator = canvas.texture_creator();
                 if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
                     let target = Rect::new(
                         WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
-                        WINDOW_HEIGHT as i32 / 2 - 150,
+                        WINDOW_HEIGHT as i32 / 2 - 180,
                         surface.width(),
                         surface.height(),
                     );
@@ -2566,12 +2564,106 @@ fn render_pause_menu(canvas: &mut Canvas<Window>, menu: &Menu, font: &Font) {
             }
         }
         MenuState::Settings => {
-            // Render settings menu
+            // Settings title
+            if let Ok(surface) = font.render("SETTINGS").blended(SdlColor::RGB(255, 255, 255)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let target = Rect::new(
+                        WINDOW_WIDTH as i32 / 2 - surface.width() as i32 / 2,
+                        WINDOW_HEIGHT as i32 / 2 - 200,
+                        surface.width(),
+                        surface.height(),
+                    );
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
+            
+            // Render settings menu with improved layout
             render_button(canvas, &menu.music_toggle_button, font);
             render_volume_slider(canvas, &menu.music_slider, font);
             render_button(canvas, &menu.sfx_toggle_button, font);
             render_volume_slider(canvas, &menu.sfx_slider, font);
             render_button(canvas, &menu.fullscreen_button, font);
+            render_button(canvas, &menu.vsync_button, font);
+            
+            // Resolution selection header
+            let center_x = WINDOW_WIDTH as i32 / 2;
+            let center_y = WINDOW_HEIGHT as i32 / 2;
+            
+            if let Ok(surface) = font.render("Resolution:").blended(SdlColor::RGB(255, 255, 255)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let target = Rect::new(
+                        center_x - surface.width() as i32 / 2,
+                        center_y + 130,
+                        surface.width(),
+                        surface.height(),
+                    );
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
+            
+            // Render resolution list buttons (only when not confirming)
+            if menu.resolution_confirm_timer.is_none() {
+                for (i, btn) in menu.resolution_buttons.iter().enumerate() {
+                    // Highlight current selection
+                    if i == menu.selected_resolution_index {
+                        canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                        canvas.set_draw_color(SdlColor::RGBA(100, 200, 100, 100));
+                        let _ = canvas.fill_rect(btn.rect);
+                        canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                    }
+                    render_button(canvas, btn, font);
+                }
+            }
+            
+            // Resolution confirmation dialog
+            if let Some(timer) = menu.resolution_confirm_timer {
+                let seconds_left = (timer as f32 / 60.0).ceil() as u32;
+                
+                // Semi-transparent box for confirmation dialog
+                canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+                canvas.set_draw_color(SdlColor::RGBA(30, 30, 50, 220));
+                let dialog_rect = Rect::new(center_x - 200, center_y + 320, 400, 80);
+                let _ = canvas.fill_rect(dialog_rect);
+                canvas.set_draw_color(SdlColor::RGB(100, 100, 150));
+                let _ = canvas.draw_rect(dialog_rect);
+                canvas.set_blend_mode(sdl2::render::BlendMode::None);
+                
+                // Confirmation message
+                let confirm_msg = format!("Keep this resolution? ({}s)", seconds_left);
+                if let Ok(surface) = font.render(&confirm_msg).blended(SdlColor::RGB(255, 255, 100)) {
+                    let texture_creator = canvas.texture_creator();
+                    if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                        let target = Rect::new(
+                            center_x - surface.width() as i32 / 2,
+                            center_y + 330,
+                            surface.width(),
+                            surface.height(),
+                        );
+                        let _ = canvas.copy(&texture, None, Some(target));
+                    };
+                }
+                
+                // Confirm/Cancel buttons
+                render_button(canvas, &menu.confirm_button, font);
+                render_button(canvas, &menu.cancel_button, font);
+            }
+            
+            // VSync restart notice
+            if let Ok(surface) = font.render("(VSync change requires restart)").blended(SdlColor::RGB(120, 120, 120)) {
+                let texture_creator = canvas.texture_creator();
+                if let Ok(texture) = texture_creator.create_texture_from_surface(&surface) {
+                    let target = Rect::new(
+                        center_x - surface.width() as i32 / 2,
+                        menu.vsync_button.rect.y() + menu.vsync_button.rect.height() as i32 + 5,
+                        surface.width(),
+                        surface.height(),
+                    );
+                    let _ = canvas.copy(&texture, None, Some(target));
+                };
+            }
+            
             render_button(canvas, &menu.back_button, font);
         }
 

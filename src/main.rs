@@ -31,6 +31,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _image_context = sdl2::image::init(InitFlag::PNG)?;
     let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
 
+    // Set render scale quality hint for better fullscreen scaling
+    sdl2::hint::set("SDL_RENDER_SCALE_QUALITY", "linear");
+    
     // Create window
     let window = video_subsystem
         .window("Arkanoo", settings.window_width, settings.window_height)
@@ -38,7 +41,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .resizable()
         .build()?;
 
-    let mut canvas = window.into_canvas().build()?;
+    // Build canvas with optional VSync
+    let canvas_builder = window.into_canvas();
+    let mut canvas = if settings.vsync {
+        canvas_builder.present_vsync().build()?
+    } else {
+        canvas_builder.build()?
+    };
     
     // Set window icon
     if let Ok(icon) = sdl2::surface::Surface::from_file("assets/icon-64.png") {
@@ -54,20 +63,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut event_pump = sdl_context.event_pump()?;
 
-    // Load font
-    let font_path = if cfg!(target_os = "windows") {
-        r"C:\Windows\Fonts\Arial.ttf"
-    } else {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    };
+    // Load font - use bundled Roboto font
+    let font_path = "assets/font/static/Roboto-Medium.ttf";
     
-    // Helper to load font with fixed size
-    let load_font = || -> Result<sdl2::ttf::Font, String> {
-        let font_size = 24;
-        ttf_context.load_font(font_path, font_size).map_err(|e| e.to_string())
-    };
-
-    let font = load_font()?;
+    // Load font at size for good quality when scaled
+    let font_size = 26;
+    let font = ttf_context.load_font(font_path, font_size).map_err(|e| e.to_string())?;
 
     // Load background image (will be loaded dynamically per level)
     let texture_creator = canvas.texture_creator();
@@ -104,6 +105,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut menu = Menu::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    
+    // Filter resolution buttons to only show resolutions that fit on current display
+    if let Ok(display_mode) = video_subsystem.current_display_mode(0) {
+        let display_w = display_mode.w as u32;
+        let display_h = display_mode.h as u32;
+        
+        // Filter available_resolutions and resolution_buttons to only include resolutions <= display size
+        let mut filtered_buttons = Vec::new();
+        let mut filtered_resolutions = Vec::new();
+        
+        for (i, &(w, h)) in menu.available_resolutions.iter().enumerate() {
+            if w <= display_w && h <= display_h {
+                if i < menu.resolution_buttons.len() {
+                    filtered_buttons.push(menu.resolution_buttons[i].clone());
+                }
+                filtered_resolutions.push((w, h));
+            }
+        }
+        
+        menu.resolution_buttons = filtered_buttons;
+        menu.available_resolutions = filtered_resolutions;
+        
+        // Ensure selected index is valid
+        if menu.selected_resolution_index >= menu.available_resolutions.len() {
+            menu.selected_resolution_index = 0;
+        }
+    }
+    
     let mut editor = LevelEditor::new();
     
     // Apply audio settings
@@ -119,6 +148,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     menu.set_sfx_muted(settings.sfx_muted);
     menu.set_fullscreen(settings.fullscreen);
     menu.set_gravity_mode(settings.gravity_mode);
+    menu.set_vsync(settings.vsync);
+    menu.set_resolution(settings.resolution_width, settings.resolution_height);
 
     // Start playing music
     audio_manager.play_music();
@@ -140,10 +171,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .load_texture(game.get_background_path())
         .ok();
     
+    // Menu background - always use first level background
+    let mut menu_background = texture_creator
+        .load_texture("assets/background1.png")
+        .ok();
+    
     // Editor background
     let mut editor_background = texture_creator
         .load_texture(editor.get_background_path())
         .ok();
+    
+    // Track current resolution for confirmation dialog
+    let mut current_resolution = (settings.resolution_width, settings.resolution_height);
 
     let target_frame_time = Duration::from_micros(1_000_000 / 60);
 
@@ -655,6 +694,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else if game.state == GameState::Paused {
                         let action = handle_menu_click(&menu, adj_x, adj_y);
                         match action {
+                            MenuAction::NewGame => {
+                                // First time starting - mark game as started
+                                menu.set_game_started(true);
+                                game.state = GameState::Playing;
+                                // Hide cursor when starting
+                                sdl_context.mouse().show_cursor(false);
+                                canvas.window_mut().set_grab(true);
+                            }
                             MenuAction::Resume => {
                                 game.toggle_pause();
                                 // Hide cursor when resuming
@@ -663,6 +710,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::Restart => {
                                 game.reset();
+                                menu.set_game_started(true);
                                 // Music continues playing, no change needed
                                 // Hide cursor when restarting
                                 sdl_context.mouse().show_cursor(false);
@@ -670,16 +718,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::Quit => {
                                 // Save settings on exit
-                                // FIXME: these are currently off due to splashscreen not scaling correctly
-                                settings.window_width = 1280; //canvas.window().size().0;
-                                settings.window_height = 720; //canvas.window().size().1;
-                                settings.fullscreen = false; //is_fullscreen;
-                                // end of FIXME
+                                settings.window_width = current_resolution.0;
+                                settings.window_height = current_resolution.1;
+                                settings.resolution_width = current_resolution.0;
+                                settings.resolution_height = current_resolution.1;
+                                settings.fullscreen = is_fullscreen;
                                 settings.music_volume = audio_manager.get_music_volume();
                                 settings.sfx_volume = audio_manager.get_sfx_volume();
                                 settings.music_muted = audio_manager.is_music_muted();
                                 settings.sfx_muted = audio_manager.is_sfx_muted();
                                 settings.gravity_mode = game.gravity_mode;
+                                settings.vsync = menu.vsync_enabled;
                                 
                                 if let Err(e) = settings.save() {
                                     eprintln!("Failed to save settings: {}", e);
@@ -693,16 +742,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             MenuAction::CloseSettings => {
                                 menu.state = MenuState::Main;
                                 // Save settings when closing settings menu
-                                // FIXME: these are currently off due to splashscreen not scaling correctly
-                                settings.window_width = 1280; //canvas.window().size().0;
-                                settings.window_height = 720; //canvas.window().size().1;
-                                settings.fullscreen = false; //is_fullscreen;
-                                // end of FIXME
+                                settings.window_width = current_resolution.0;
+                                settings.window_height = current_resolution.1;
+                                settings.resolution_width = current_resolution.0;
+                                settings.resolution_height = current_resolution.1;
+                                settings.fullscreen = is_fullscreen;
                                 settings.music_volume = audio_manager.get_music_volume();
                                 settings.sfx_volume = audio_manager.get_sfx_volume();
                                 settings.music_muted = audio_manager.is_music_muted();
                                 settings.sfx_muted = audio_manager.is_sfx_muted();
                                 settings.gravity_mode = game.gravity_mode;
+                                settings.vsync = menu.vsync_enabled;
                                 
                                 if let Err(e) = settings.save() {
                                     eprintln!("Failed to save settings: {}", e);
@@ -725,6 +775,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let _ = canvas.window_mut().set_fullscreen(sdl2::video::FullscreenType::Off);
                                 }
                             }
+                            MenuAction::ToggleVSync => {
+                                // Toggle VSync state (note: actual VSync change requires restart)
+                                let new_vsync = !menu.vsync_enabled;
+                                menu.set_vsync(new_vsync);
+                                settings.vsync = new_vsync;
+                                // Note: VSync is set at canvas creation, so change takes effect on restart
+                            }
                             MenuAction::ToggleGravity => {
                                 game.toggle_gravity_mode();
                                 menu.set_gravity_mode(game.gravity_mode);
@@ -735,6 +792,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             MenuAction::OpenGithub => {
                                 let _ = webbrowser::open("https://github.com/c0m4r/arkanoo");
+                            }
+                            MenuAction::SelectResolution(index) => {
+                                // Only process if different from current
+                                if index != menu.selected_resolution_index {
+                                    let old_res = current_resolution;
+                                    menu.selected_resolution_index = index;
+                                    let (new_w, new_h) = menu.get_selected_resolution();
+                                    menu.resolution_label = format!("{}x{}", new_w, new_h);
+                                    
+                                    // Apply new resolution
+                                    let _ = canvas.window_mut().set_size(new_w, new_h);
+                                    let scale_x = new_w as f32 / WINDOW_WIDTH as f32;
+                                    let scale_y = new_h as f32 / WINDOW_HEIGHT as f32;
+                                    let _ = canvas.set_scale(scale_x, scale_y);
+                                    
+                                    current_resolution = (new_w, new_h);
+                                    
+                                    // Start confirmation timer
+                                    menu.start_resolution_confirmation(old_res);
+                                }
+                            }
+                            MenuAction::ConfirmResolution => {
+                                menu.confirm_resolution();
+                            }
+                            MenuAction::CancelResolution => {
+                                if let Some((old_w, old_h)) = menu.cancel_resolution() {
+                                    // Revert to old resolution
+                                    let _ = canvas.window_mut().set_size(old_w, old_h);
+                                    let scale_x = old_w as f32 / WINDOW_WIDTH as f32;
+                                    let scale_y = old_h as f32 / WINDOW_HEIGHT as f32;
+                                    let _ = canvas.set_scale(scale_x, scale_y);
+                                    
+                                    current_resolution = (old_w, old_h);
+                                    menu.set_resolution(old_w, old_h);
+                                }
                             }
                             MenuAction::None => {}
                         }
@@ -799,6 +891,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // Update resolution confirmation timer (if active)
+        if game.state == GameState::Paused && menu.state == MenuState::Settings
+            && menu.update_resolution_timer()
+        {
+            // Timer expired - revert to previous resolution
+            if let Some((old_w, old_h)) = menu.cancel_resolution() {
+                let _ = canvas.window_mut().set_size(old_w, old_h);
+                let scale_x = old_w as f32 / WINDOW_WIDTH as f32;
+                let scale_y = old_h as f32 / WINDOW_HEIGHT as f32;
+                let _ = canvas.set_scale(scale_x, scale_y);
+                
+                current_resolution = (old_w, old_h);
+                menu.set_resolution(old_w, old_h);
+            }
+        }
+
         // Update game
         let mut sound_to_play = None;
         game.update(&mut |effect| sound_to_play = Some(effect));
@@ -842,7 +950,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if game.state == GameState::LevelEditor {
             render_editor(&mut canvas, &editor, &font, editor_background.as_mut(), &texture_cache);
         } else {
-            render_game(&mut canvas, &game, &menu, background.as_mut(), heart_texture.as_ref(), splash_texture.as_mut(), &font, current_fps, splash_timer, &mut texture_cache);
+            render_game(&mut canvas, &game, &menu, background.as_mut(), menu_background.as_mut(), heart_texture.as_ref(), splash_texture.as_mut(), &font, current_fps, splash_timer, &mut texture_cache);
         }
 
         // Target 60 FPS
