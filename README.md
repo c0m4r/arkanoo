@@ -1,20 +1,25 @@
+<div align="center">
+
 # Arkanoo <img src="assets/icon-32.png" alt="" />
 
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://rust-lang.org/) [![Google Gemini](https://img.shields.io/badge/google%20gemini-8E75B2?style=for-the-badge&logo=google%20gemini&logoColor=white)](https://deepmind.google/models/gemini/pro/) [![Claude](https://img.shields.io/badge/Claude-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://www.anthropic.com/claude/sonnet) [![Itch.io](https://img.shields.io/badge/Itch-%23FF0B34.svg?style=for-the-badge&logo=Itch.io&logoColor=white)](https://c0m4r.itch.io/arkanoo)
 
 A fully-featured Arkanoid/Breakout game written in Rust.
 
+<video src="https://github.com/user-attachments/assets/47f5c644-4434-4ea0-9d2b-bda05203688c"></video>
+
+</div>
+
 ## Installation
 
 ```bash
 wget https://github.com/c0m4r/arkanoo/releases/download/0.5.0/arkanoo-0.5.0-linux.tar.gz
+echo "588d3a79bff653191b27992180b27709ce65587fbdc36f8cce3308c4ed50f238 arkanoo-0.5.0-linux.tar.gz" | sha256sum -c || rm arkanoo-0.5.0-linux.tar.gz
 tar -xvf arkanoo-0.5.0-linux.tar.gz
-cd arkanoo-0.5.0-linux
+cd arkanoo-0.5.0
 ./install_sdl2.sh
 ./arkanoo
 ```
-
-<img width="1280" height="749" alt="image" src="https://github.com/user-attachments/assets/28ada6ce-9558-45d7-b08f-1c5ac9c8e8bb" />
 
 ## Features
 
@@ -52,8 +57,6 @@ cd arkanoo-0.5.0-linux
 - 🖱️ **Mouse Control** - Control paddle with mouse movement
 - 🏆 **Level Transitions** - Win animations and prompts between levels
 - ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed and hearts shatter
-
-<video src="https://github.com/user-attachments/assets/47f5c644-4434-4ea0-9d2b-bda05203688c"></video>
 
 ## Visual Enhancements
 
