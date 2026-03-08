@@ -4,13 +4,17 @@
 
 A fully-featured Arkanoid/Breakout game written in Rust.
 
+## Installation
+
+```bash
+wget https://github.com/c0m4r/arkanoo/releases/download/0.5.0/arkanoo-0.5.0-linux.tar.gz
+tar -xvf arkanoo-0.5.0-linux.tar.gz
+cd arkanoo-0.5.0-linux
+./install_sdl2.sh
+./arkanoo
+```
+
 <img width="1280" height="749" alt="image" src="https://github.com/user-attachments/assets/28ada6ce-9558-45d7-b08f-1c5ac9c8e8bb" />
-
-## Download
-
-https://github.com/c0m4r/arkanoo/releases
-
-[![Available on itch.io](http://jessemillar.github.io/available-on-itchio-badge/badge-color.png)](https://c0m4r.itch.io/arkanoo)
 
 ## Features
 
