@@ -13,10 +13,10 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 ## Installation
 
 ```bash
-wget https://github.com/c0m4r/arkanoo/releases/download/0.5.0/arkanoo-0.5.0-linux.tar.gz
-echo "588d3a79bff653191b27992180b27709ce65587fbdc36f8cce3308c4ed50f238 arkanoo-0.5.0-linux.tar.gz" | sha256sum -c || rm arkanoo-0.5.0-linux.tar.gz
-tar -xvf arkanoo-0.5.0-linux.tar.gz
-cd arkanoo-0.5.0
+wget https://github.com/c0m4r/arkanoo/releases/download/0.5.1/arkanoo-0.5.1-linux.tar.gz
+echo "861898d0ac0b2402c13d1f111c97c7cf9a3aabce7a53cc41b839e8b0a4990c0c  arkanoo-0.5.1-linux.tar.gz" | sha256sum -c || rm arkanoo-0.5.1-linux.tar.gz
+tar -xvf arkanoo-0.5.1-linux.tar.gz
+cd arkanoo-0.5.1
 ./install_sdl2.sh
 ./arkanoo
 ```
