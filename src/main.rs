@@ -858,11 +858,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
-                Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } => {
-                    if game.state == GameState::LevelEditor {
+                Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. }
+                    if game.state == GameState::LevelEditor => {
                         editor.stop_drag();
                     }
-                }
 
                 _ => {}
             }
