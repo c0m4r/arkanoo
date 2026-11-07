@@ -1,3 +1,6 @@
+// Don't open a console window alongside the game on Windows release builds
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod entities;
 mod game;
 mod rendering;
@@ -21,6 +24,14 @@ use crate::editor::LevelEditor;
 use crate::settings::Settings;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Assets are loaded relative to the working directory, which may not be
+    // the game folder when launched from a file manager or shortcut
+    if !std::path::Path::new("assets").is_dir() {
+        if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+            let _ = std::env::set_current_dir(dir);
+        }
+    }
+
     // Load settings
     let mut settings = Settings::load();
 

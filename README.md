@@ -10,101 +10,217 @@ A fully-featured Arkanoid/Breakout game written in Rust.
 
 </div>
 
-## Installation
+## Contents
+
+- [Download and play](#download-and-play)
+- [Features](#features)
+- [Controls](#controls)
+- [Game rules](#game-rules)
+- [Level editor](#level-editor)
+- [Settings](#settings)
+- [Troubleshooting](#troubleshooting)
+- [Building from source](#building-from-source)
+- [Project structure](#project-structure)
+- [License and credits](#license-and-credits)
+
+## Download and play
+
+Grab the latest build from [GitHub Releases](https://github.com/c0m4r/arkanoo/releases) or [itch.io](https://c0m4r.itch.io/arkanoo). Everything the game needs is in the package, so there is nothing else to install.
+
+### Linux
+
+Download `arkanoo-<version>-linux.tar.gz`, then:
 
 ```bash
-wget https://github.com/c0m4r/arkanoo/releases/download/0.5.1/arkanoo-0.5.1-linux.tar.gz
-echo "861898d0ac0b2402c13d1f111c97c7cf9a3aabce7a53cc41b839e8b0a4990c0c  arkanoo-0.5.1-linux.tar.gz" | sha256sum -c || rm arkanoo-0.5.1-linux.tar.gz
-tar -xvf arkanoo-0.5.1-linux.tar.gz
-cd arkanoo-0.5.1
-./install_sdl2.sh
+tar -xzf arkanoo-*-linux.tar.gz
+cd arkanoo-*/
 ./arkanoo
+```
+
+Requires 64-bit Linux with glibc 2.34 or newer (Ubuntu 22.04+, Debian 12+, Fedora 35+, Arch, Manjaro, …), running X11 or Wayland.
+
+### Windows
+
+Download `arkanoo-<version>-windows.zip`, extract it (right-click → **Extract All**) and double-click `arkanoo.exe`.
+
+Requires 64-bit Windows 10 or 11. The executable isn't code-signed, so SmartScreen may warn you the first time; choose **More info → Run anyway**.
+
+### Verifying the download
+
+Each package includes the SHA-256 checksum of the game binary:
+
+```bash
+sha256sum -c arkanoo.sha256                                   # Linux
+```
+
+```powershell
+Get-FileHash arkanoo.exe; Get-Content arkanoo.exe.sha256      # Windows (PowerShell)
 ```
 
 ## Features
 
-- 🎯 **Campaign & Infinite Mode** - 9 handcrafted levels followed by endless procedurally generated stages.
-- 📋 **Level Patterns**:
-  - **Levels 1-9**: Unique handcrafted patterns (Grid, Checkerboard, Stripes, Pillars, etc.)
-  - **Levels 10+**: Infinite procedurally generated block layouts.
-- 🌪️ **Spin Mechanic** - Curve the ball's trajectory by moving the paddle during impact.
-- 🎁 **Bonus System** - Random drops (15% chance):
-  - ⚽ **Extra Ball** - Spawns a second ball (40% of drops)
-  - 📏 **Long Paddle** - Extends paddle width temporarily (40% of drops)
-  - 👻 **Ghost Ball** - Balls pass through blocks for 10 seconds (10% of drops, rare)
-  - 🚀 **Rocket** - Launch explosive rockets with Space (10% of drops, rare)
-- 🎯 **Scoring System**:
-  - +10 points per block destroyed
-  - +5 points for each paddle reflection
-  - +2 points for each bonus collected
-  - -20 points for losing a life
-- 💥 **Rocket Weapon**:
-  - Fire rockets with **Spacebar** when ammo available
-  - Visual cannon indicator appears on paddle
-  - Blinking "press space to launch" text
-  - Rockets explode on impact, destroying blocks in 2-block radius
-- 📊 **HUD** - Score display and lives shown as ❤️ red hearts
-- 💔 **Heart Shatter Effect** - Hearts shatter into particles when lives are lost
-- ⏸️ **Interactive Menu** - Click buttons or use keyboard:
-  - Resume, Restart, Settings, Quit
-  - Volume control slider
-  - Sound mute/unmute toggle
-  - Resolution options (1280×720, 1920×1080, 2560×1440) with 5-second confirmation
-  - Fullscreen toggle
-- 🎵 **Dynamic Music** - 6 unique songs, one for each level
-- 🔊 **Audio** - MP3 support with multiple sound effects
-- 🌆 **Procedural Backgrounds** - 6 distinct animated themes (Matrix, Nebula, Tron Grid, etc.) that are randomized for infinite variety.
-- 🖱️ **Mouse Control** - Control paddle with mouse movement
-- 🏆 **Level Transitions** - Win animations and prompts between levels
-- ✨ **Particle Effects** - Glass-shattering particles when blocks are destroyed and hearts shatter
+### Gameplay
 
-## Visual Enhancements
+- 🎯 **Campaign and Infinite Mode**: 9 handcrafted levels, followed by endless procedurally generated stages.
+- 🌪️ **Spin**: move the paddle as the ball hits it to curve the ball's path.
+- 🪐 **Gravity Mode**: an optional mode where the ball accelerates downward and spin is disabled.
+- 🎁 **Power-ups**: Long Paddle, Extra Ball, Ghost Ball and Rockets (see [Power-ups](#power-ups)).
+- 🧊 **Special blocks**: Ice, Explosive and Undestroyable blocks for custom levels.
+- 🌀 **Speed Portal**: push the ball past 3600 px/s and a portal opens that swallows the remaining blocks for a 5000 point bonus.
+- 🐧 **Heart thief**: when you lose a life, a penguin waddles in and steals the heart.
+- 🛠️ **Level editor**: design your own layouts, test them instantly, and have them show up in Infinite Mode.
 
-- **Gradient Blocks** - Top-to-bottom color fade on each block
-- **Glass Effects** - Semi-transparent overlays on blocks and paddle
-- **Symbolic Bonuses** - Easy-to-recognize icons for all bonus types
-- **Heart Lives** - Lives displayed as red heart shapes (PNG texture)
-- **Heart Shatter Animation** - Hearts explode into crimson particles when lives are lost
-- **Rocket Visuals** - Detailed rocket projectiles with nose cone, fins, and flame trail
-- **Cannon Indicator** - Visual cannon appears on paddle when rockets are available
-- **Procedural Backgrounds** - 6 stunning, randomized themes (Cyber Grid, Star Voyage, Hex Pulse, Aurora Waves, Matrix Rain, Nebula Clouds).
-- **Visual Feedback** - Paddle glows and discharges energy when spin is applied.
-- **Smooth Animations** - Particle effects and transitions
-- **Scalable Graphics** - Resolution options with crisp font rendering at all resolutions
-- **Safe Resolution Changes** - 5-second confirmation prevents accidental resolution issues
+### Visuals
+
+- **Levels 1–6** have illustrated backgrounds, and **levels 7–9** have animated ones (starfield, pulsing circles, digital rain).
+- **Infinite Mode** picks from 20 procedural themes: Cyber Grid, Star Voyage, Hex Pulse, Aurora Waves, Matrix Rain, Nebula Clouds, Rain & Thunder, Snow, Starry Night, Smoke, Bubbles, Fire, Digital Circuit, Kaleidoscope, Warp, Maze, Supernova, Space Wars, Deep Sea and Tornado.
+- Gradient, glass-style blocks and paddle, a glowing paddle when spin is applied, and particle effects when blocks shatter.
+- Rockets come with a nose cone, fins and a flame trail. A cannon appears on the paddle while you have ammo.
+- The HUD shows score, level, lives as hearts, your top ball speed and FPS.
+- The game renders at 1280×720 and scales cleanly to any window size or fullscreen.
+
+### Audio
+
+- A piano soundtrack played in random order.
+- Sound effects for bounces, explosions, rocket launches and lost lives.
+- Separate on/off toggles and volume sliders for music and sound effects.
 
 ## Controls
 
-| Key/Action | Function |
-|-----|--------|
-| ← / → | Move paddle left/right (keyboard) |
-| Mouse Movement | Move paddle left/right (in-game) |
-| **Space** | **Fire rocket (when available)** |
-| Left Click | Start next level (during transitions) |
-| ESC | Pause/Resume game |
-| F11 | Toggle fullscreen |
-| R | Restart (in pause/game over) |
-| Q | Quit (in pause/game over) |
+### In game
 
-**In Pause Menu:**
-- Resume - Continue game
-- Restart - Start new game
-- Settings - Adjust audio settings
-- Quit - Exit game
+| Input | Action |
+|---|---|
+| Mouse / **←** **→** | Move the paddle |
+| **Space** | Launch the ball, then fire rockets when you have ammo |
+| **Esc** | Pause and open the menu |
+| **F11** | Toggle fullscreen |
+| **Enter** / Left click | Skip the splash screen; start the next level |
+| **R** | Restart (when paused or after the game ends) |
+| **Q** | Quit (when paused or after the game ends) |
 
-**In Settings:**
-- Sound Toggle - Enable/disable all audio
-- Volume Slider - Adjust music and sound effect volume (0-100%)
-- Resolution - Cycle through available resolutions with 5-second confirmation (1280×720, 1920×1080, 2560×1440)
-- Fullscreen - Toggle fullscreen mode
+<details>
+<summary>Cheat</summary>
 
-## Building
+Pressing **Q** while playing clears the current level and skips to the next one.
 
-### Prerequisites
+</details>
 
-#### Linux
+### Menu
 
-Install SDL2 development libraries:
+The menu works with the mouse: hover to highlight a button, click to activate it, and drag the sliders to change volume.
+
+| Main menu | |
+|---|---|
+| **New Game / Resume** | Start playing, or return to the current game |
+| **Restart** | Start over from level 1 |
+| **Gravity Mode** | Toggle Gravity Mode |
+| **Level Editor** | Open the [level editor](#level-editor) |
+| **Settings** | Audio and display [settings](#settings) |
+| **Quit** | Save settings and exit |
+
+## Game rules
+
+- You start with **3 lives**. Finishing a level after losing a life gives one back (up to 3).
+- Clear every destroyable block to finish a level. Undestroyable blocks don't count.
+- After level 9 you've beaten the campaign. Click or press Enter to continue into **Infinite Mode**.
+- Infinite Mode layouts come from 12 generators (scatter, waves, stripes, rings, checkerboard, cellular, honeycomb, mirror, maze, diamonds, invaders and DNA helix) plus any custom patterns in `patterns/`.
+- The game is over when you run out of lives.
+
+### Scoring
+
+| Event | Points |
+|---|---|
+| Block destroyed | +10 |
+| Ball bounces off the paddle | +5 |
+| Power-up collected | +2 |
+| Speed Portal opened | +5000 |
+| Life lost | −20 (score never goes below 0) |
+
+### Power-ups
+
+A destroyed block has a 15% chance to drop a power-up, at most one per second.
+
+| Power-up | Chance | Effect |
+|---|---|---|
+| 📏 **Long Paddle** | 50% | Wider paddle for 5 seconds |
+| ⚽ **Extra Ball** | 25% | Adds another ball |
+| 👻 **Ghost Ball** | 15% | Balls pass through blocks for 10 seconds |
+| 🚀 **Rocket** | 10% | +1 rocket. Press Space to fire it; it explodes on impact and destroys blocks within about 2 blocks |
+
+### Special blocks
+
+| Block | Behavior |
+|---|---|
+| **Ice** | Takes 2 hits |
+| **Explosive** | Blows up neighboring blocks when destroyed |
+| **Undestroyable** | Can't be destroyed and isn't needed to finish the level |
+
+## Level editor
+
+Open **Level Editor** from the main menu to design layouts on the 20×10 block grid.
+
+| Input | Action |
+|---|---|
+| Left click / drag | Paint blocks |
+| Right click / drag | Erase blocks |
+| **0**–**5** | Normal block colors |
+| **6** / **7** / **8** | Ice / Explosive / Undestroyable block |
+| **N** | Rename the pattern (Enter to finish) |
+| **S** | Save to `patterns/<name>.txt` |
+| **L** | Open the pattern browser (**↑** **↓** to select, **Enter** to load) |
+| **T** | Test-play the layout |
+| **C** | Clear the grid (press twice to confirm) |
+| **Esc** | Back to the menu |
+
+Every action is also available as an on-screen button, along with arrows for previewing the level backgrounds.
+
+Saved patterns are added to the Infinite Mode rotation. They are plain text files, so you can also write them by hand: up to 10 rows of 20 characters, where `#` starts a comment line.
+
+```
+# * = empty, 0-5 = normal, 6 = Ice, 7 = Explosive, 8 = Undestroyable
+88666666666666666688
+88777777777777777788
+88111111111111111188
+88000000000000000088
+```
+
+## Settings
+
+- **Music** and **SFX**: on/off toggles and volume sliders.
+- **Resolution**: 1280×720, 1366×768, 1600×900, 1920×1080 or 2560×1440. A new resolution is reverted after 5 seconds unless you click **Keep**.
+- **Fullscreen / Windowed**: also toggled with F11.
+- **VSync**: takes effect the next time you start the game.
+
+Settings, including Gravity Mode, are saved to `settings.json` in the game folder.
+
+## Troubleshooting
+
+**Linux: `version 'GLIBC_2.34' not found`.** Your distribution is older than the release build supports. [Build from source](#building-from-source) instead.
+
+**No sound.** Check the Music and SFX toggles and sliders in Settings. On Linux, the game plays audio through PipeWire, PulseAudio or ALSA, so one of them must be working.
+
+**Missing graphics or text.** The `assets/` folder must stay next to the executable. Extract the whole package, not just the binary.
+
+**"Failed to save settings".** The game folder must be writable, because `settings.json` is stored there.
+
+**Wrong resolution or a broken display after changing settings.** Delete `settings.json` to restore the defaults.
+
+## Building from source
+
+### Release packages
+
+`release.sh` builds the self-contained Linux and Windows packages into `dist/`. It needs Docker with Buildx, or Podman via `ENGINE=podman ./release.sh`:
+
+```bash
+./release.sh
+```
+
+The build runs in an Ubuntu 22.04 container (see `packaging/`). It compiles SDL2, SDL2_image, SDL2_mixer and SDL2_ttf as static libraries, enabling only the formats the game uses. Both binaries link them in, and the Windows one is cross-compiled with MinGW-w64. The first run takes a few minutes to build SDL; later runs reuse the cache.
+
+### Linux
+
+Install the SDL2 development libraries:
 
 ```bash
 # Debian/Ubuntu
@@ -117,177 +233,67 @@ sudo dnf install SDL2-devel SDL2_mixer-devel SDL2_ttf-devel SDL2_image-devel
 sudo pacman -S sdl2 sdl2_mixer sdl2_ttf sdl2_image
 ```
 
-#### Windows
+`./install_sdl2.sh` detects your distribution and installs them for you. It supports Debian, Ubuntu, Fedora, Arch, Void, Alpine, Gentoo and their derivatives.
 
-Building on Windows requires additional setup:
-
-**1. Install Visual Studio Build Tools**
-
-Download and install:
-- [Visual Studio Build Tools](https://aka.ms/vs/stable/vs_BuildTools.exe)
-
-**2. Install CMake (version 3.31.10)**
-
-Download and install from either:
-- [CMake Official](https://cmake.org/files/v3.31/cmake-3.31.10-windows-x86_64.msi)
-- [CMake GitHub Mirror](https://github.com/Kitware/CMake/releases/download/v3.31.10/cmake-3.31.10-windows-x86_64.msi)
-
-**3. Download SDL2 Prebuilt Binaries**
-
-Download the latest Windows development libraries from:
-- [SDL2](https://github.com/libsdl-org/SDL/releases) - Main SDL library
-- [SDL2_ttf](https://github.com/libsdl-org/SDL_ttf/releases) - TrueType font support
-- [SDL2_image](https://github.com/libsdl-org/SDL_image/releases) - Image loading (PNG)
-- [SDL2_mixer](https://github.com/libsdl-org/SDL_mixer/releases) - Audio mixing (MP3)
-
-**4. Extract and Organize SDL Files**
-
-In your `arkanoo` directory (next to `Cargo.toml`):
-1. Extract all `.lib` files from the downloaded SDL archives to the root directory
-2. Combine all `include` folders from each SDL library into a single `include` directory
-3. Your directory structure should look like:
-   ```
-   arkanoo/
-   ├── Cargo.toml
-   ├── SDL2.lib
-   ├── SDL2_ttf.lib
-   ├── SDL2_image.lib
-   ├── SDL2_mixer.lib
-   ├── include/
-   │   └── SDL2/
-   │       ├── *.h (combined headers from all SDL libraries)
-   └── src/
-   ```
-
-### Required Assets
-
-Place the following files in the `assets/` directory:
-
-**Audio:**
-- `ball.mp3` - Ball bounce sound effect
-- `oh.mp3` - Sound when life is lost
-- `load.mp3` - Sound when launching rocket
-- `breaking-glass.mp3` - Sound when rocket explodes
-- `song1.mp3` through `song6.mp3` - Background music (one per level)
-
-**Graphics:**
-- `background1.png` through `background6.png` - Background images (one per level)
-- `heart.png` - Heart icon for life display
-
-### Compile
+Then build and run:
 
 ```bash
 cargo build --release
-```
-
-The binary will be at `target/release/arkanoo` (approximately 540 KB).
-
-## Running
-
-```bash
 ./target/release/arkanoo
 ```
 
+### Windows (native)
 
-## Game Rules
+1. Install [Rust](https://rustup.rs/) and the [Visual Studio Build Tools](https://aka.ms/vs/stable/vs_BuildTools.exe) with the **Desktop development with C++** workload.
+2. Copy the `.lib` files from `sdl2\` into the project root (next to `Cargo.toml`).
+3. Build:
+   ```powershell
+   cargo build --release
+   ```
+4. Copy the `.dll` files from `sdl2\` into `target\release\` and run `target\release\arkanoo.exe` from the project root.
 
-- Start with **3 lives** (shown as ❤️)
-- **Scoring:**
-  - Each block destroyed: **+10 points**
-  - Each paddle reflection: **+5 points**
-  - Each bonus collected: **+2 points**
-  - Losing a life: **-20 points**
-- **Bonuses** (15% drop chance):
-  - **Extra Ball** (40%) - Adds an additional ball
-  - **Long Paddle** (40%) - Extends paddle temporarily
-  - **Ghost Ball** (10%, rare) - Balls pass through blocks for 10 seconds
-  - **Rocket** (10%, rare) - Grants 1 rocket, fire with Space to create 2-block radius explosion
-- **9-Level Campaign** with unique block patterns
-- **Infinite Mode** unlocks after completing the campaign
-- Clear all blocks in a level to proceed to the next
-- Complete all 9 levels to beat the campaign!
-- Game over if all lives are lost
-
-## Menu Navigation
-
-The pause menu features **clickable buttons** with hover effects:
-
-- **Hover** - Buttons highlight when you move the mouse over them
-- **Click** - Left-click to activate buttons
-- **Volume Slider** - Click and drag to adjust volume in real-time
-- **Sound Toggle** - Instantly mute/unmute all audio
-
-## Project Structure
+## Project structure
 
 ```
 arkanoo/
 ├── src/
-│   ├── main.rs         # Entry point & game loop with menu integration
-│   ├── entities.rs     # Game entities (Paddle, Ball, Block, Bonus, Particle, Rocket)
-│   ├── game.rs         # Core game logic with scoring and bonuses
-│   ├── rendering.rs    # Graphics with gradients, glass effects, particles, rockets
-│   ├── audio.rs        # Level-based music management and sound effects
-│   └── menu.rs         # Interactive menu with settings and resolution confirmation
-├── assets/
-│   ├── ball.mp3        # Bounce sound effect
-│   ├── oh.mp3          # Life lost sound
-│   ├── load.mp3        # Rocket launch sound
-│   ├── breaking-glass.mp3  # Rocket explosion sound
-│   ├── song1.mp3       # Level 1 music
-│   ├── song2.mp3       # Level 2 music
-│   ├── song3.mp3       # Level 3 music
-│   ├── song4.mp3       # Level 4 music
-│   ├── song5.mp3       # Level 5 music
-│   ├── song6.mp3       # Level 6 music
-│   ├── background1.png # Level 1 background
-│   ├── background2.png # Level 2 background
-│   ├── background3.png # Level 3 background
-│   ├── background4.png # Level 4 background
-│   ├── background5.png # Level 5 background
-│   ├── background6.png # Level 6 background
-│   └── heart.png       # Heart life icon
-└── Cargo.toml
+│   ├── main.rs        # Entry point, event loop, menu and editor input
+│   ├── game.rs        # Game state, physics, scoring, power-ups, portal
+│   ├── entities.rs    # Paddle, ball, blocks, bonuses, rockets, particles, level patterns
+│   ├── rendering.rs   # Drawing: blocks, effects, backgrounds, HUD, menus, editor
+│   ├── audio.rs       # Music playlist and sound effects
+│   ├── menu.rs        # Main and settings menus
+│   ├── editor.rs      # Level editor and pattern file format
+│   └── settings.rs    # settings.json load/save
+├── assets/            # Backgrounds, sounds, music, font, icons
+├── patterns/          # Custom level patterns (used in Infinite Mode)
+├── packaging/         # Container build for self-contained release packages
+├── sdl2/              # SDL2 import libraries and DLLs for native Windows builds
+├── build.rs           # Embeds the icon into the Windows executable
+├── release.sh         # Builds release packages for Linux and Windows
+└── install_sdl2.sh    # Installs SDL2 development libraries on Linux
 ```
 
-## Dependencies
+Built with [`sdl2`](https://crates.io/crates/sdl2) (with the image, mixer and TTF add-ons) for graphics, input and audio, along with `rand`, `serde`/`serde_json`, `once_cell` and `webbrowser`.
 
-Minimal dependencies as requested:
+## License and credits
 
-- `sdl2` (with mixer, ttf, image features) - Graphics, input, audio, and text rendering
-- `rand` - Random number generation for bonus drops and song selection
+Arkanoo is released under the **WTFPL**, effectively public domain. Copyright (C) 2025 c0m4r.
 
-## Troubleshooting
-
-### No Audio
-- Ensure all MP3 files are in `assets/` directory:
-  - Music: `song1.mp3` - `song6.mp3`
-  - Sound effects: `ball.mp3`, `oh.mp3`, `load.mp3`, `breaking-glass.mp3`
-- Check file permissions (read access required)
-- Verify SDL2_mixer is installed with MP3 support
-
-### Background Not Showing
-- Ensure all background PNG files (`background1.png` - `background6.png`) exist in `assets/`
-- Verify SDL2_image is installed with PNG support
-
-### Font Issues (Windows)
-- The game uses `C:\Windows\Fonts\Arial.ttf` on Windows
-- Ensure the font file exists or modify `src/main.rs` to use a different font
-
-### Font Issues (Linux)
-- The game uses `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` on Linux
-- Install DejaVu fonts if missing: `sudo apt-get install fonts-dejavu-core`
-
-## License
-
-- arkanoo: WTFPL / effectively Public Domain / Copyright (C) 2025 c0m4r
-- SDL2: zlib license / Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
-
-## Authors
+### Authors
 
 Code: Gemini 3 Pro (High) / Claude {Sonnet,Opus} 4.5 (Thinking) / c0m4r
 
-Logo and backgrounds has been AI generated by Gemini 2.5 Flash Image (Nano Banana)
+The logo and backgrounds were AI-generated with Gemini 2.5 Flash Image (Nano Banana).
 
-## Credits
+### Third-party software and assets
 
-Sounds and music from https://pixabay.com/music/
+The release packages contain the following third-party components. Their full license texts are in the `licenses/` folder of each package.
+
+| Component | License | Notice |
+|---|---|---|
+| [SDL2](https://www.libsdl.org/), [SDL2_image](https://github.com/libsdl-org/SDL_image), [SDL2_mixer](https://github.com/libsdl-org/SDL_mixer), [SDL2_ttf](https://github.com/libsdl-org/SDL_ttf) | zlib | Copyright (C) 1997-2025 Sam Lantinga |
+| [FreeType](https://freetype.org/) (font rendering, via SDL2_ttf) | FreeType License (FTL) | Portions of this software are copyright © 2023 The FreeType Project (www.freetype.org). All rights reserved. |
+| [libwebp](https://chromium.googlesource.com/webm/libwebp) (WebP images, via SDL2_image) | BSD 3-Clause | Copyright (c) 2010, Google Inc. All rights reserved. |
+| [Roboto](https://github.com/googlefonts/roboto-classic) font | SIL Open Font License 1.1 | Copyright 2011 The Roboto Project Authors. See [`assets/font/OFL.txt`](assets/font/OFL.txt). |
+| Music and sound effects | [Pixabay Content License](https://pixabay.com/service/license-summary/) | From [Pixabay](https://pixabay.com/music/). See [`assets/music/README.md`](assets/music/README.md) for the tracks. |

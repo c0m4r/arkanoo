@@ -1,5 +1,10 @@
 #!/bin/bash
 # Arkanoo Release Script
+#
+# Builds self-contained Linux and Windows packages. SDL2 and its add-ons are
+# linked statically inside a container (see packaging/Dockerfile), so players
+# don't need to install anything. Requires Docker with BuildKit, or Podman
+# (run with ENGINE=podman).
 set -e
 
 # Extract version from Cargo.toml
@@ -11,65 +16,76 @@ fi
 
 echo "Preparing release for Arkanoo version: $VERSION"
 
-# Ensure the project is built in release mode
-echo "Building the project..."
-chmod +x ./build.sh
-./build.sh
-
-# Create the VERSION file
-echo "$VERSION" > VERSION.tmp
-
-# Prepare the release package structure in a temporary directory
-PKG_NAME="arkanoo-$VERSION"
+ENGINE=${ENGINE:-docker}
+BIN_DIR="target/release-pkg"
 BUILD_DIR="release_build_tmp"
+PKG_NAME="arkanoo-$VERSION"
+
+echo "Running clippy..."
+cargo clippy
+
+# The first run builds the SDL toolchain image (a few minutes); later runs
+# reuse it along with cached cargo builds.
+echo "Building Linux and Windows binaries with $ENGINE..."
+rm -rf "$BIN_DIR"
+"$ENGINE" build -f packaging/Dockerfile --output "type=local,dest=$BIN_DIR" .
+
 rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR/$PKG_NAME"
-
-# Copy all required files to the package directory
-echo "Assembling package..."
-cp target/release/arkanoo "$BUILD_DIR/$PKG_NAME/"
-cp -r assets "$BUILD_DIR/$PKG_NAME/"
-cp -r patterns "$BUILD_DIR/$PKG_NAME/"
-cp LICENSE "$BUILD_DIR/$PKG_NAME/" 2>/dev/null || touch "$BUILD_DIR/$PKG_NAME/LICENSE"
-cp README.md "$BUILD_DIR/$PKG_NAME/" 2>/dev/null || touch "$BUILD_DIR/$PKG_NAME/README.md"
-cp VERSION.tmp "$BUILD_DIR/$PKG_NAME/VERSION"
-cp install_sdl2.sh "$BUILD_DIR/$PKG_NAME/"
-
-# Generate checksums for the binary
-echo "Generating checksums..."
-cd "$BUILD_DIR/$PKG_NAME"
-# Use standard format (hash filename) for sha256sum
-sha256sum arkanoo > arkanoo.sha256
-
-# Generate .wrl checksum (Whirlpool)
-if command -v whirlpoolsum >/dev/null; then
-    whirlpoolsum arkanoo > arkanoo.wrl
-else
-    echo "Warning: No whirlpool hashing tool found. Skipping arkanoo.wrl."
-fi
-cd ../..
-
-# Create dist directory if it doesn't exist
 mkdir -p dist
 
-# Create the final tar.gz package
-PACKAGE_FILE="arkanoo-$VERSION-linux.tar.gz"
-echo "Creating tarball: dist/$PACKAGE_FILE"
-tar -czf "dist/$PACKAGE_FILE" -C "$BUILD_DIR" "$PKG_NAME"
+# Assemble a package directory for one platform: package <platform> <binary>
+package() {
+    local platform=$1
+    local binary=$2
+    local dir="$BUILD_DIR/$platform/$PKG_NAME"
+
+    mkdir -p "$dir"
+    cp "$BIN_DIR/$binary" "$dir/"
+    cp -r assets patterns "$dir/"
+    cp -r "$BIN_DIR/licenses" "$dir/"
+    cp LICENSE "$dir/" 2>/dev/null || touch "$dir/LICENSE"
+    cp README.md "$dir/" 2>/dev/null || touch "$dir/README.md"
+    echo "$VERSION" > "$dir/VERSION"
+
+    # Use standard format (hash filename) for sha256sum
+    (cd "$dir" && sha256sum "$binary" > "$binary.sha256")
+
+    # Generate .wrl checksum (Whirlpool)
+    if command -v whirlpoolsum >/dev/null; then
+        (cd "$dir" && whirlpoolsum "$binary" > "$binary.wrl")
+    else
+        echo "Warning: No whirlpool hashing tool found. Skipping $binary.wrl."
+    fi
+}
+
+echo "Assembling packages..."
+package linux arkanoo
+package windows arkanoo.exe
+
+LINUX_PACKAGE="arkanoo-$VERSION-linux.tar.gz"
+WINDOWS_PACKAGE="arkanoo-$VERSION-windows.zip"
+
+echo "Creating dist/$LINUX_PACKAGE"
+tar -czf "dist/$LINUX_PACKAGE" -C "$BUILD_DIR/linux" "$PKG_NAME"
+
+echo "Creating dist/$WINDOWS_PACKAGE"
+rm -f "dist/$WINDOWS_PACKAGE"
+(cd "$BUILD_DIR/windows" && zip -qr "../../dist/$WINDOWS_PACKAGE" "$PKG_NAME")
 
 # Clean up
 rm -rf "$BUILD_DIR"
-rm VERSION.tmp
 
 echo "--------------------------------------------------"
-echo "Release successfully created: dist/$PACKAGE_FILE"
-echo "Contents included:"
-echo "  - arkanoo binary"
-echo "  - assets/ directory"
-echo "  - patterns/ directory"
+echo "Release successfully created:"
+echo "  - dist/$LINUX_PACKAGE"
+echo "  - dist/$WINDOWS_PACKAGE"
+echo "Each package contains:"
+echo "  - arkanoo / arkanoo.exe (SDL2 statically linked)"
+echo "  - assets/ and patterns/ directories"
+echo "  - licenses/ (third-party licenses for bundled libraries)"
 echo "  - LICENSE & README.md"
 echo "  - VERSION file"
-echo "  - install_sdl2.sh"
-echo "  - arkanoo.sha256 (SHA-256 hash)"
-echo "  - arkanoo.wrl (Whirlpool hash)"
+echo "  - SHA-256 and Whirlpool hashes of the binary"
 echo "--------------------------------------------------"
+echo
+(cd dist && sha256sum "$LINUX_PACKAGE" "$WINDOWS_PACKAGE")
